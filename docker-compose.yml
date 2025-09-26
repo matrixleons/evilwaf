@@ -1,0 +1,25 @@
+version: '2.0'
+
+services:
+  evilwaf:
+    build: .
+    container_name: evilwaf
+    volumes:
+      - ./output:/app/output
+      - ./scan_results:/app/scan_results
+      - ./targets.txt:/app/targets.txt
+    working_dir: /app
+    stdin_open: true
+    tty: true
+    command: ["python", "evilwaf.py", "--help"]
+    
+  evilwaf-dev:
+    build: .
+    container_name: evilwaf-dev
+    volumes:
+      - .:/app
+      - ./output:/app/output
+    working_dir: /app
+    stdin_open: true
+    tty: true
+    command: ["tail", "-f", "/dev/null"]

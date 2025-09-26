@@ -1,0 +1,17 @@
+sudo: false
+
+language: python
+python:
+  - "3.8"
+  - "3.9"
+  - "3.10"
+
+notifications:
+  email: false
+
+install:
+  - pip install -r requirements.txt
+
+script:
+  - python evilwaf.py --help
+  - python evilwaf.py --version
