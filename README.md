@@ -50,6 +50,47 @@ Comprehensive subdomain discovery for alternative access:
 - **DNS Zone Transfer Attempts**: Exploit misconfigured DNS servers
 - **Reverse IP Lookup**: Find all domains on shared hosting
 
+### 4. **HTTP Request Smuggling**
+Advanced protocol-level attacks to bypass WAF inspection:
+- **CL.TE Attacks**: Content-Length vs Transfer-Encoding conflicts
+- **TE.CL Attacks**: Transfer-Encoding vs Content-Length confusion
+- **Header Obfuscation**: Space and tab variations in headers
+- **Chunk Size Manipulation**: Large and malformed chunk sizes
+- **Method Override**: Smuggled GET, POST, PUT, DELETE requests
+- **Endpoint Diversification**: Target admin panels, APIs, and internal endpoints
+
+### 5. **JWT Algorithm Confusion**
+Authentication bypass through token manipulation:
+- **Algorithm "none" Attack**: Remove signature verification
+- **Weak Secret Testing**: Common and default JWT secrets
+- **Key Confusion**: Use public keys as HMAC secrets
+- **Header Injection**: KID, JKU, and X5U header attacks
+- **Timestamp Manipulation**: Future expirations and fixed timestamps
+- **Role Escalation**: Admin and superuser claim injection
+
+### 6. **GraphQL Query Batching**
+Exploit GraphQL features to evade detection:
+- **Query Batching**: Multiple queries in single request
+- **Array Batching**: ID arrays with injection payloads
+- **Mutation Batching**: Combined login and privilege escalation
+- **Introspection Abuse**: Schema discovery with injection
+- **Alias Attacks**: Multiple query aliases with different parameters
+- **Variable Manipulation**: SQL injection through GraphQL variables
+
+### 7. **gRPC/Protobuf Bypass**
+Binary protocol attacks to evade content inspection:
+- **Protocol Confusion**: Mix gRPC, Protobuf, and REST content types
+- **Binary Encoding**: SQL injection in binary payloads
+- **Content-Type Manipulation**: Various gRPC content type headers
+- **Cloud Provider Mimicry**: AWS, Google, and Azure gRPC headers
+- **WebSocket Protocol**: gRPC-Web and WebSocket protocol attacks
+- **Proxy Header Injection**: Combine gRPC with proxy headers
+
+
+
+
+
+
 
 
 <p align="center">
@@ -117,7 +158,7 @@ Comprehensive subdomain discovery for alternative access:
 I DO NOT offer support for privide elligal issue but I  will help you to  reach your goal
 
 
-([link](https://www.linkedin.com/in/matrix-leons-77793a340)
+[linkedin](https://www.linkedin.com/in/matrix-leons-77793a340)
 
 
 **evilwaf** is made by matrix leons
@@ -143,6 +184,38 @@ git clone https://github.com/matrixleons/evilwaf.git
 cd evilwaf
 
 pip3 install -r requirements.txt
+
+python3 evilwaf.py -d https;//site.com -o results.json(Recommended)
+
+python3 evilwaf.py -d site.com -o results.json 
+
+python3 evilwaf.py -d site.com / https://site.com
+
+            [ Tool output example]
+
+
+
+[+] PHASE 2: DNS History Bypass
+[*] Testing 14 IP variants
+[-] 35.187.93.140                            Bypass Success
+[-] 35.187.93.1                              Bypass Failed
+[-] 35.187.93.2                              Bypass Failed
+[-] 35.187.93.10                             Bypass Failed
+[-] 35.187.93.50                             Bypass Failed
+[-] 35.187.93.100                            Bypass Failed
+[-] 35.187.93.200                            Bypass Failed
+[-] 35.187.93.254                            Bypass Failed
+[-] 35.187.93.255                            Bypass Failed
+[-] 35.187.93.101                            Bypass Failed
+[-] 35.187.93.102                            Bypass Failed
+[-] 35.187.93.103                            Bypass Failed
+[-] 35.187.93.253                            Bypass Failed
+[-] 35.187.93.252                            Bypass Failed
+
+
+
+
+
 
 
 Docker Installation
