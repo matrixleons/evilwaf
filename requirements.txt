@@ -8,4 +8,5 @@ termcolor==2.3.0
 pysocks==1.7.1
 fake-useragent==1.3.0
 tqdm==4.65.0
-click==8.1.7
+click==8.1
+PyJWT[crypto]>=2.8.0
