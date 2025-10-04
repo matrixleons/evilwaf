@@ -185,7 +185,7 @@ cd evilwaf
 
 pip3 install -r requirements.txt
 
-python3 evilwaf.py -d https;//site.com -o results.json(Recommended)
+python3 evilwaf.py -d https://site.com -o results.json(Recommended)
 
 python3 evilwaf.py -d site.com -o results.json 
 
