@@ -155,7 +155,7 @@ Binary protocol attacks to evade content inspection:
 
 
 ##support 
-I DO NOT offer support for privide elligal issue but I  will help you to  reach your goal
+I DO NOT offer support for provide illigal issue but I  will help you to  reach your goal
 
 
 [linkedin](https://www.linkedin.com/in/matrix-leons-77793a340)
