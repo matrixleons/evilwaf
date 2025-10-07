@@ -88,7 +88,7 @@ Binary protocol attacks to evade content inspection:
 
 
 
-###  Webassembly Memory Corruption 
+### 8.  Webassembly Memory Corruption 
 Client-side WAF bypass through WebAssembly exploitation:
 - **Memory Growth Injection** - WASM memory expansion attacks
 - **Stack Overflow Payloads** - Call stack exhaustion
@@ -105,7 +105,7 @@ Client-side WAF bypass through WebAssembly exploitation:
 - **Custom Section Injection** - Metadata exploitation
 - **Compressed WASM Malformed** - Decompression attacks
 
-###  SSTI Polyglot Payloads
+### 9.  SSTI Polyglot Payloads
 Universal template injection across multiple engines:
 - **Multi-Engine RCE Polyglot** - Cross-template engine exploitation
 - **File Read Exploits** - Filesystem access through templates
@@ -125,7 +125,7 @@ Universal template injection across multiple engines:
 - **SQL via Templates** - Database access through templates
 - **XXE via Templates** - XML External Entity injection
 
-###  Machine learnig Waf Evasion
+### 10.  Machine learnig Waf Evasion
 AI-powered WAF bypass through adversarial attacks:
 - **Homoglyph Attacks** - Visual character confusion
 - **Zero-Width Character Injection** - Invisible character insertion
@@ -177,7 +177,21 @@ AI-powered WAF bypass through adversarial attacks:
 
 
 
-
+### 11. HTTP/2 Stream Multiplexing Attack
+Advanced HTTP/2 protocol exploitation to bypass next-generation WAFs:
+- **Stream Priority Hijacking** - Manipulate request processing order
+- **RST_STREAM Flood Attacks** - Resource exhaustion through stream resets
+- **WINDOW_UPDATE Overflow** - Flow control mechanism bypass
+- **PRIORITY Hijacking** - Traffic prioritization manipulation
+- **PING Flood Attacks** - Server resource drain
+- **SETTINGS Flood** - Configuration parameter overload
+- **CONTINUATION Frame Flood** - Header fragmentation attacks
+- **HPACK Table Overflow** - Header compression corruption
+- **GOAWAY Session Hijack** - Connection termination exploitation
+- **DATA Frame Injection** - Direct request smuggling
+- **Malformed Frames** - Protocol parser confusion
+- **Stream Conflict Attacks** - ID collision exploitation
+- **Zero-Length Bombardment** - Parser stress testing
 
 
 
