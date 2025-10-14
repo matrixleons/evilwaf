@@ -280,6 +280,13 @@ I DO NOT offer support for provide illigal issue but I  will help you to  reach 
 
 
 
+##  Show Your Support
+If this program  has been helpful to you, please consider giving us a star on Github  Your support means a value to this  and helps others discover the project, your star is more powerfull behind this tool.
+
+
+
+
+
 
 
 ##  Installation
