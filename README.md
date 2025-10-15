@@ -4,7 +4,7 @@
   <img alt="Evilwaf Title" src="https://raw.githubusercontent.com/matrixleons/evilwaf/main/media/img/evilwaf.jpg" height="60" />
 </div>
 
-#Evilwaf 2.1
+#Evilwaf 2.2
 
 
 # EvilWAF - Web Application Firewall Bypass Toolkit
