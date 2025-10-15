@@ -297,9 +297,19 @@ If this program  has been helpful to you, please consider giving us a star on Gi
 
 ### Method 1: Clone from GitHub (Recommended)
 ```bash
+
+
+# 1. Create virtual environment
+python3 -m venv myenv
+
+# 2. Activate virtual environment
+source myenv/bin/activate
+
 git clone https://github.com/matrixleons/evilwaf.git
 
 cd evilwaf
+
+
 
 pip3 install -r requirements.txt
 
