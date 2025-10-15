@@ -208,10 +208,10 @@ Advanced HTTP/2 protocol exploitation to bypass next-generation WAFs:
 - **Zero-Length Bombardment** - Parser stress testing
 
 
+### 12. Cache Poisoning 
 
 
-
-
+### 13 . Web Cache Poisoning 
 
 
 <p align="center">
