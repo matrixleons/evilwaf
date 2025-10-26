@@ -17,6 +17,19 @@
   - Header Manipulation
   - DNS History Analysis  
   - Subdomain Enumeration
+  - HTTP Request Smuggling
+  - JWT Algorithm Confusion
+  - GraphQL Query Batching
+  - gRPC/Protobuf Bypass
+  - Advanced Protocol Attacks
+  - HTTP/2 Stream Multiplexing
+  - WebAssembly Memory Corruption
+  - SSTI Polyglot Payloads
+  - Machine Learning WAF Evasion
+  - Cache Poisoning
+  - Web cache poisoning
+
+
 - **Firewall Evasion**: Advanced methods to bypass security controls
 - **Comprehensive Scanning**: Multi-technique approach for maximum effectiveness
 
