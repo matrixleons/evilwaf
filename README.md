@@ -191,7 +191,10 @@ Advanced HTTP/2 protocol exploitation to bypass next-generation WAFs:
 - **Stream Conflict Attacks** - ID collision exploitation
 - **Zero-Length Bombardment** - Parser stress testing
 
+### 12. Cache Poisoning
 
+
+### 13 . Web Cache Poisoning
 
 
 
