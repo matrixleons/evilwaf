@@ -203,7 +203,7 @@ Advanced HTTP/2 protocol exploitation to bypass next-generation WAFs:
 
 <p align="center">
   <img alt="Screenshot"
-  src="https://raw.githubusercontent.com/matrixleons/evilwaf/main/media/img/screen.jpg" height="320" />
+  src="https://raw.githubusercontent.com/matrixleons/evilwaf/main/media/img/Terminal.jpg" height="320" />
 </p>
 
 <p align="center">
