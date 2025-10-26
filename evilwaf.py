@@ -36,6 +36,15 @@ import requests
 import base64
 import jwt
 from core.updater import updater
+from log.subdomain_logger import SubdomainLogger
+from log.smuggling_logger import SmugglingLogger
+from log.graphql_logger import GraphQLLogger
+from log.ssti_logger import SSTILogger
+from log.cache_poisoning_logger import CachePoisoningLogger
+
+
+
+
 
 
 
@@ -77,7 +86,7 @@ def fill_line_with_color(color_code, text=""):
         return colored_spaces
 
 
-print(fill_line_with_color(Colors.PURPLE, "hello world         2.2             matrix"))
+print(fill_line_with_color(Colors.PURPLE, "hello world         2.3             matrix"))
 
 
 
@@ -101,7 +110,7 @@ ___________     .__.__                  _____
         
         
   
-  Created by: Matrix.                                 {Colors.CYAN}~EVILWAF{Colors.WHITE} : {Colors.BLUE}V2.2{Colors.WHITE}
+  Created by: Matrix.                                 {Colors.CYAN}~EVILWAF{Colors.WHITE} : {Colors.BLUE}V2.3{Colors.WHITE}
 
                           Codename : {Colors.YELLOW}hello world{Colors.WHITE}                 
     \033[41mThe Web Application Firewall Fingerprinting Toolkit\033[0m
@@ -1131,6 +1140,59 @@ class EvilWAFBypass:
             await asyncio.sleep(0.2)
         
         await self.subdomain_summary_report(valid_subdomains, working_subs, domain)
+        print(f"\n{Colors.CYAN}{'─'*60}{Colors.END}")
+        print(f"{Colors.CYAN}[+] STARTING  LOGGING{Colors.END}")
+        print(f"{Colors.CYAN}{'─'*60}{Colors.END}")
+
+        logger = SubdomainLogger()
+
+        # Log scan start
+        logger.log_summary_start(domain)
+
+        # Calculate statistics for logging
+        total_tested = len(self.bruteforce.subdomain_wordlist)
+        dns_found = len(valid_subdomains)
+        bypass_success = len(working_subs)
+        bypass_success_rate = (bypass_success / dns_found) * 100 if dns_found > 0 else 0
+
+        # Log statistics
+        stats = {
+            'total_tested': total_tested,
+            'dns_found': dns_found, 
+            'bypass_success': bypass_success,
+            'success_rate': bypass_success_rate
+        }
+        logger.log_statistics(stats)
+
+        # Log DNS records
+        if valid_subdomains:
+            print(f"{Colors.CYAN}[+] Logging DNS records...{Colors.END}")
+            logger.log_dns_records(valid_subdomains, working_subs)
+
+        # Log successful bypasses
+        if working_subs:
+            print(f"{Colors.GREEN}[+] Logging successful bypasses...{Colors.END}")
+            logger.log_successful_bypasses(working_subs)
+
+        # Log DNS failures
+        failed_subs = [f"{sub}.{domain}" for sub in self.bruteforce.subdomain_wordlist 
+              if f"{sub}.{domain}" not in valid_subdomains]
+        if failed_subs:
+            print(f"{Colors.RED}[+] Logging DNS failures...{Colors.END}")
+            logger.log_failed_dns(failed_subs)
+
+        # Log bypass failures
+        bypass_failed_subs = [sub for sub in valid_subdomains if sub not in working_subs]
+        if bypass_failed_subs:
+            print(f"{Colors.YELLOW}[+] Logging bypass failures...{Colors.END}")
+            logger.log_bypass_failures(bypass_failed_subs)
+
+        # Log completion
+        final_success_rate = (bypass_success / total_tested) * 100 if total_tested > 0 else 0
+        logger.log_scan_completion(final_success_rate, bypass_success, total_tested)
+
+        print(f"{Colors.GREEN}[+] Real-time logging completed{Colors.END}")
+        
         return working_subs
         
         
@@ -1601,6 +1663,100 @@ class EvilWAFBypass:
             await asyncio.sleep(1)
         
         await self.print_smuggling_summary_report(domain, working_smuggles)
+        
+        print(f"\n{Colors.CYAN}{'─'*60}{Colors.END}")
+        print(f"{Colors.CYAN}[+] STARTING SMUGGLING LOGGING{Colors.END}")
+        print(f"{Colors.CYAN}{'─'*60}{Colors.END}")
+
+        logger = SmugglingLogger()
+
+         
+        # Log scan start
+        logger.log_scan_start(domain)
+
+        # Calculate statistics
+        total_payloads = 14
+        success_payloads = len(working_smuggles)
+        success_rate = (success_payloads / total_payloads) * 100 if total_payloads > 0 else 0
+
+        # Log statistics
+        logger.log_statistics(total_payloads, success_payloads, success_rate)
+
+        # Log successful payloads
+        if working_smuggles:
+            print(f"{Colors.GREEN}[+] Logging successful smuggling payloads...{Colors.END}")
+            logger.log_successful_payloads(working_smuggles)
+
+        # Log attack categories
+        
+        category_counts = {
+            'CL.TE Attacks': 0,
+            'TE.CL Attacks': 0,
+            'Obfuscation Attacks': 0,
+            'Header Injection': 0,
+            'Chunk Extension': 0,
+            'Standard Smuggling': 0
+        }
+
+        for payload in working_smuggles:
+            if "CL.TE" in payload or ("Content-Length" in payload and "Transfer-Encoding: chunked" in payload):
+                category_counts['CL.TE Attacks'] += 1
+            elif "TE.CL" in payload:
+                category_counts['TE.CL Attacks'] += 1
+            elif "Transfer-Encoding :" in payload or "Transfer-Encoding:\t" in payload:
+                category_counts['Obfuscation Attacks'] += 1
+            elif "X-Forwarded-For" in payload or "X-Real-IP" in payload:
+                category_counts['Header Injection'] += 1
+            elif "chunk-extension" in payload:
+                category_counts['Chunk Extension'] += 1
+            else:
+                category_counts['Standard Smuggling'] += 1
+
+        if working_smuggles:
+            print(f"{Colors.CYAN}[+] Logging attack categories...{Colors.END}")
+            logger.log_attack_categories(category_counts, success_payloads)
+
+        # Log technique effectiveness
+        technique_stats = {}
+        for payload in working_smuggles:
+            if "CL.TE" in payload:
+                tech = "CL.TE"
+            elif "TE.CL" in payload:
+                tech = "TE.CL"
+            elif "Transfer-Encoding :" in payload:
+                tech = "Space Obfuscation"
+            elif "Transfer-Encoding:\t" in payload:
+                tech = "Tab Obfuscation"
+            elif "chunk-extension" in payload:
+                tech = "Chunk Extension"
+            elif "X-Forwarded-For" in payload:
+                tech = "Header Injection"
+            else:
+                tech = "Standard"
+    
+            technique_stats[tech] = technique_stats.get(tech, 0) + 1
+
+        if technique_stats:
+            print(f"{Colors.CYAN}[+] Logging technique effectiveness...{Colors.END}")
+            logger.log_technique_effectiveness(technique_stats)
+
+        # Log vulnerable paths
+        if working_smuggles:
+            target_paths = []
+            for payload in working_smuggles:
+                target_match = re.search(r'GET\s+([^\s]+)\s+HTTP', payload)
+                if target_match:
+                    target_paths.append(target_match.group(1))
+    
+            if target_paths:
+                print(f"{Colors.GREEN}[+] Logging vulnerable paths...{Colors.END}")
+                logger.log_vulnerable_paths(target_paths)
+
+        # Log completion
+        logger.log_scan_completion(success_rate, success_payloads, total_payloads)
+
+        print(f"{Colors.GREEN}[+] Real-time smuggling logging completed{Colors.END}")
+        
         return working_smuggles
 
 
@@ -2232,6 +2388,77 @@ class EvilWAFBypass:
             await asyncio.sleep(0.5)
         
         await self.print_graphql_summary_report(domain, working_queries)  
+        
+        
+        print(f"\n{Colors.CYAN}{'─'*60}{Colors.END}")
+        print(f"{Colors.CYAN}[+] STARTING GRAPHQL LOGGING{Colors.END}")
+        print(f"{Colors.CYAN}{'─'*60}{Colors.END}")
+
+        logger = GraphQLLogger()
+
+        # Log scan start
+         
+        logger.log_scan_start(domain)
+
+        # Calculate statistics
+        total_payloads = 5
+        success_payloads = len(working_queries)
+        success_rate = (success_payloads / total_payloads) * 100 if total_payloads > 0 else 0
+
+        # Log statistics
+        logger.log_statistics(total_payloads, success_payloads, success_rate)
+
+        # Log successful queries
+        if working_queries:
+            print(f"{Colors.GREEN}[+] Logging successful GraphQL queries...{Colors.END}")
+            logger.log_successful_queries(working_queries)
+
+        # Log vulnerable endpoints
+        if working_queries:
+            print(f"{Colors.GREEN}[+] Logging vulnerable endpoints...{Colors.END}")
+            logger.log_vulnerable_endpoints(working_queries)
+
+        # Log attack categories
+        category_counts = {}
+        for query_data in working_queries:
+            payload = query_data.get('payload', {})
+    
+            if isinstance(payload, list):
+                if any("UNION SELECT" in str(q.get('query', '')) for q in payload):
+                    category = 'SQL Injection'
+                elif any("mutation" in str(q.get('query', '')).lower() for q in payload):
+                    category = 'Mutation Batching'
+                else:
+                    category = 'Query Batching'
+            else:
+                query_str = str(payload.get('query', ''))
+                if "__schema" in query_str:
+                    category = 'Introspection'
+                elif "UNION SELECT" in query_str:
+                    category = 'SQL Injection'
+                elif "aliasing" in query_str.lower() or "normal:" in query_str:
+                    category = 'Aliasing Attack'
+                elif "variables" in payload:
+                    category = 'Variables Batching'
+                else:
+                    category = 'Query Batching'
+    
+            category_counts[category] = category_counts.get(category, 0) + 1
+
+        if category_counts:
+            print(f"{Colors.CYAN}[+] Logging attack categories...{Colors.END}")
+            logger.log_attack_categories(category_counts, success_payloads)
+
+        # Log data leakage
+        if working_queries:
+            print(f"{Colors.RED}[+] Checking for data leakage...{Colors.END}")
+            logger.log_data_leakage(working_queries)
+
+        # Log completion
+        logger.log_scan_completion(success_rate, success_payloads, total_payloads)
+
+        print(f"{Colors.GREEN}[+] Real-time GraphQL logging completed{Colors.END}")
+        
         return working_queries
 
 
@@ -2650,6 +2877,56 @@ class EvilWAFBypass:
         print(f"[+] SSTI Attacks: {successful_attacks}/{len(ssti_payloads)} Successful")
         
         await self.print_ssti_summary_report(domain, results, ssti_payloads)
+        
+        
+        print(f"\n{Colors.CYAN}{'─'*60}{Colors.END}")
+        print(f"{Colors.CYAN}[+] STARTING SSTI LOGGING{Colors.END}")
+        print(f"{Colors.CYAN}{'─'*60}{Colors.END}")
+
+        logger = SSTILogger()
+
+        # Log scan start
+        logger.log_scan_start(domain)
+
+        # Calculate statistics
+        total_payloads = len(ssti_payloads)
+        success_payloads = len(results)
+        success_rate = (success_payloads / total_payloads) * 100 if total_payloads > 0 else 0
+
+        # Log statistics
+        logger.log_statistics(total_payloads, success_payloads, success_rate)
+
+        # Log successful attacks
+        if results:
+            print(f"{Colors.GREEN}[+] Logging successful SSTI attacks...{Colors.END}")
+            logger.log_successful_attacks(results)
+
+       # Log template engines
+        if results:
+            print(f"{Colors.CYAN}[+] Logging template engine vulnerabilities...{Colors.END}")
+            logger.log_template_engines(results, success_payloads)
+
+       # Log payload details
+        if results:
+            print(f"{Colors.YELLOW}[+] Logging payload details...{Colors.END}")
+            logger.log_payload_details(results, ssti_payloads)
+
+        # Log technique effectiveness
+        if results:
+            print(f"{Colors.CYAN}[+] Logging technique effectiveness...{Colors.END}")
+            logger.log_technique_effectiveness(results)
+
+        # Log security impact
+        
+        if results:
+            print(f"{Colors.RED}[+] Logging security impact assessment...{Colors.END}")
+            logger.log_security_impact(results)
+
+        # Log completion
+        logger.log_scan_completion(success_rate, success_payloads, total_payloads)
+
+        print(f"{Colors.GREEN}[+] Real-time SSTI logging completed{Colors.END}")
+        
         return results
 
     def get_ssti_attack_name(self, index):
@@ -3983,14 +4260,14 @@ class EvilWAFBypass:
                     print(f"{Colors.GREEN}    Python: b'{hex_payload}'{Colors.END}")
         
 
-        print(f"\n{Colors.MAGENTA}{'DETAILED PAYLOAD ANALYSIS (ALL PAYLOADS)':<80}{Colors.END}")
-        print(f"{Colors.MAGENTA}{'─'*80}{Colors.END}")
+        print(f"\033[42m{'DETAILED PAYLOAD ANALYSIS (ALL PAYLOADS)':<80}\033[0m")
+        print(f"{Colors.WHITE}{'─'*75}{Colors.END}")
         
         for i, payload in enumerate(wasm_payloads, 1):
             attack_name = self.get_wasm_attack_name(i-1)
             payload_size = len(payload)
-            status = "[*]YPASS" if i-1 < len(results) else "[*]FAILED"
-            status_color = Colors.GREEN if status == "[*]YPASS" else Colors.RED
+            status = "[*]BYPASS" if i-1 < len(results) else "[*]FAILED"
+            status_color = Colors.GREEN if status == "[*]BYPASS" else Colors.RED
             
 
             has_wasm_magic = payload.startswith(b'\x00asm')
@@ -4018,7 +4295,7 @@ class EvilWAFBypass:
             
 
             if i-1 < len(results):  # Only for successful payloads
-                print(f"{Colors.GREEN}    Copy: b'{payload.hex()}'{Colors.END}")
+                print(f"{Colors.GREEN}    payload: b'{payload.hex()}'{Colors.END}")
         
 
         await asyncio.sleep(0.5)
@@ -4473,6 +4750,59 @@ class EvilWAFBypass:
                 continue
     
         await self.print_cache_poisoning_summary(domain, results, deception_payloads)
+        
+        print(f"\n{Colors.CYAN}{'─'*60}{Colors.END}")
+        print(f"{Colors.CYAN}[+] STARTING CACHE POISONING LOGGING{Colors.END}")
+        print(f"{Colors.CYAN}{'─'*60}{Colors.END}")
+
+        logger = CachePoisoningLogger()
+
+        # Log scan start
+        logger.log_scan_start(domain)
+
+        # Calculate statistics
+        total_payloads = len(deception_payloads)
+        success_payloads = len(results)
+        success_rate = (success_payloads / total_payloads) * 100 if total_payloads > 0 else 0
+
+        # Log statistics
+        logger.log_statistics(total_payloads, success_payloads, success_rate)
+
+        # Log successful techniques
+        if results:
+            print(f"{Colors.GREEN}[+] Logging successful cache deception techniques...{Colors.END}")
+            logger.log_successful_techniques(results, deception_payloads)
+
+        # Log payload analysis
+        if deception_payloads:
+            print(f"{Colors.CYAN}[+] Logging payload analysis...{Colors.END}")
+            logger.log_payload_analysis(deception_payloads, results)
+
+        # Log deception types
+        if results:
+            print(f"{Colors.MAGENTA}[+] Logging deception types breakdown...{Colors.END}")
+            logger.log_deception_types(results, deception_payloads)
+
+        # Log payload sizes
+        if deception_payloads:
+            print(f"{Colors.YELLOW}[+] Logging payload size analysis...{Colors.END}")
+            logger.log_payload_sizes(deception_payloads, results)
+
+        # Log ready payloads
+        if results:
+            print(f"{Colors.GREEN}[+] Logging copy-paste ready payloads...{Colors.END}")
+            logger.log_ready_payloads(results, deception_payloads)
+
+        # Log security impact
+        if results:
+            print(f"{Colors.RED}[+] Logging security impact assessment...{Colors.END}")
+            logger.log_security_impact(results)
+
+        # Log completion
+        logger.log_scan_completion(success_rate, success_payloads, total_payloads)
+
+        print(f"{Colors.GREEN}[+] Real-time cache poisoning logging completed{Colors.END}")
+        
         return {'success': False}
 
 
@@ -4966,7 +5296,7 @@ class EvilWAFBypass:
 def show_usage():
     usage = f"""
 {Colors.WHITE}
-EVILWAF v2.2
+EVILWAF v2.3
 ------------
 
 {Colors.WHITE}Usage:{Colors.END}

@@ -4,7 +4,7 @@
   <img alt="Evilwaf Title" src="https://raw.githubusercontent.com/matrixleons/evilwaf/main/media/img/evilwaf.jpg" height="60" />
 </div>
 
-#Evilwaf 2.1
+#Evilwaf 2.3
 
 
 # EvilWAF - Web Application Firewall Bypass Toolkit
@@ -137,30 +137,17 @@ AI-powered WAF bypass through adversarial attacks:
 - **String Concatenation Bypass** - Character splitting
 - **Hex Encoding Attacks** - Hexadecimal representation
 - **Base64 Obfuscation** - Base64 encoded payloads
-- **Regex Anchor Bypass** - Regular expression evasion
 - **Null Byte Injection** - String termination attacks
-- **Backslash Escaping** - Escape sequence manipulation
-- **Multiline Evasion** - Newline separation techniques
-- **Template Injection Bypass** - Multi-engine template attacks
 - **JavaScript Obfuscation** - Char code conversion
 - **CSS Expression Attacks** - CSS-based code execution
-- **Data URL Bypass** - Data URI scheme attacks
-- **Protocol Relative URLs** - Scheme-less URL attacks
 - **DOM-Based Evasion** - Client-side execution bypass
 - **Event Handler Bypass** - SVG and HTML event exploitation
 - **Time-Based SQLi Evasion** - Timing attack detection bypass
 - **Boolean-Based Blind SQLi** - Boolean logic manipulation
 - **Union-Based SQLi** - Union query obfuscation
 - **Stacked Queries Evasion** - Multiple query execution
-- **Second-Order Injection** - Delayed exploitation techniques
-- **XPath Injection Bypass** - XML path manipulation
-- **LDAP Injection Evasion** - Directory service attacks
 - **Command Injection Obfuscation** - OS command execution bypass
-- **Path Traversal Bypass** - Directory traversal obfuscation
 - **SSRF Payload Evasion** - Server-side request forgery
-- **XXE Obfuscation** - XML External Entity bypass
-- **Deserialization Attacks** - Object serialization exploitation
-- **Buffer Overflow Evasion** - Memory corruption attempts
 - **Format String Attacks** - Format string vulnerability exploitation
 - **Integer Overflow** - Numerical boundary attacks
 - **Type Confusion** - Data type manipulation
@@ -171,8 +158,6 @@ AI-powered WAF bypass through adversarial attacks:
 - **JWT Token Manipulation** - Token tampering techniques
 - **Protobuf Bypass** - Protocol buffer attacks
 - **HTTP/2 Stream Evasion** - HTTP/2 protocol exploitation
-- **WebSocket Injection** - WebSocket protocol attacks
-- **Ultimate Polyglot Payload** - Combined evasion techniques
 
 
 
