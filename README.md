@@ -1,8 +1,7 @@
 <div align="center">
   <img alt="Evilwaf Logo" src="https://raw.githubusercontent.com/matrixleons/evilwaf/main/media/img/evilwaf.jpg" height="420" />
   <br />
-  <img alt="Evilwaf Title" src="https://raw.githubusercontent.com/matrixleons/evilwaf/main/media/img/evilwaf.jpg" height="60" />
-</div>
+  <img alt="Evilwaf Title" 
 
 #Evilwaf 2.3
 
