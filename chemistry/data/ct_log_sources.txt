@@ -1,0 +1,5 @@
+https://crt.sh/?q={domain}&output=json
+https://crt.sh/?q=%.{domain}&output=json
+https://api.certspotter.com/v1/issuances?domain={domain}&include_subdomains=true&expand=dns_names
+https://transparencyreport.google.com/transparencyreport/api/v3/httpsreport/ct/certsearch?include_subdomains=true&domain={domain}
+https://ctlogs.org/api/v1/domain/{domain}

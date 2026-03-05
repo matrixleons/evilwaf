@@ -1,0 +1,10 @@
+https://grep.app/api/search?q={domain}&filter[lang][0]=YAML&filter[lang][1]=JSON
+https://grep.app/api/search?q={domain}+origin&filter[lang][0]=nginx
+https://grep.app/api/search?q={domain}+server_name
+https://grep.app/api/search?q={domain}+proxy_pass
+https://grep.app/api/search?q={domain}+BACKEND_HOST
+https://grep.app/api/search?q={domain}+upstream
+https://grep.app/api/search?q={domain}+ORIGIN_IP
+https://grep.app/api/search?q={domain}+SERVER_IP
+https://grep.app/api/search?q={domain}+docker-compose
+https://grep.app/api/search?q={domain}+.env

@@ -1,0 +1,91 @@
+services:
+
+
+  evilwaf:
+    build: .
+    container_name: evilwaf
+    stdin_open: true
+    tty: true
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./output:/app/output
+      - ./ca_certs:/tmp/evilwaf_ca
+    working_dir: /app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TERM=xterm-256color
+    command: ["python3", "evilwaf.py", "--help"]
+
+
+  evilwaf-tor:
+    build: .
+    container_name: evilwaf-tor
+    stdin_open: true
+    tty: true
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./output:/app/output
+      - ./ca_certs:/tmp/evilwaf_ca
+    working_dir: /app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TERM=xterm-256color
+    command: ["python3", "evilwaf.py", "--enable-tor"]
+
+
+  evilwaf-hunt:
+    build: .
+    container_name: evilwaf-hunt
+    stdin_open: true
+    tty: true
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./output:/app/output
+      - ./ca_certs:/tmp/evilwaf_ca
+    working_dir: /app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TERM=xterm-256color
+      - SHODAN_API_KEY=${SHODAN_API_KEY}
+      - SECURITYTRAILS_API_KEY=${SECURITYTRAILS_API_KEY}
+      - VIRUSTOTAL_API_KEY=${VIRUSTOTAL_API_KEY}
+      - CENSYS_API_ID=${CENSYS_API_ID}
+      - CENSYS_API_SECRET=${CENSYS_API_SECRET}
+    command: ["python3", "evilwaf.py", "--auto-hunt"]
+
+  # Headless mode — no TUI, stdout only
+  evilwaf-headless:
+    build: .
+    container_name: evilwaf-headless
+    stdin_open: true
+    tty: true
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./output:/app/output
+      - ./ca_certs:/tmp/evilwaf_ca
+    working_dir: /app
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: ["python3", "evilwaf.py", "--no-tui"]
+
+  # Dev mode — live code editing
+  evilwaf-dev:
+    build: .
+    container_name: evilwaf-dev
+    stdin_open: true
+    tty: true
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/app
+      - ./output:/app/output
+      - ./ca_certs:/tmp/evilwaf_ca
+    working_dir: /app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TERM=xterm-256color
+    command: ["tail", "-f", "/dev/null"]

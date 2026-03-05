@@ -1,0 +1,82 @@
+language: python
+
+python:
+  - "3.8"
+  - "3.9"
+  - "3.10"
+  - "3.11"
+
+os:
+  - linux
+
+dist: focal
+
+
+env:
+  global:
+    - PYTHONDONTWRITEBYTECODE=1
+    - PYTHONUNBUFFERED=1
+
+
+addons:
+  apt:
+    packages:
+      - tor
+      - libssl-dev
+      - libffi-dev
+      - build-essential
+      - gcc
+
+
+cache:
+  pip: true
+  directories:
+    - ~/.cache/pip
+
+
+install:
+  - pip install --upgrade pip
+  - pip install -r requirements.txt
+  - pip install pytest pytest-cov flake8
+
+
+before_script:
+  - flake8 evilwaf.py --max-line-length=120 --ignore=E501,W503 || true
+  - flake8 core/ --max-line-length=120 --ignore=E501,W503 || true
+
+script:
+  - pytest tests/ -v --tb=short || true
+
+
+after_success:
+  - pip install coveralls
+  - coveralls || true
+
+
+jobs:
+  include:
+    - stage: lint
+      python: "3.11"
+      script:
+        - pip install flake8
+        - flake8 evilwaf.py --max-line-length=120 --ignore=E501,W503 || true
+
+  
+    - stage: test
+      python: "3.11"
+      script:
+        - pytest tests/ -v --tb=short || true
+
+    
+    - stage: docker
+      services:
+        - docker
+      script:
+        - docker build -t evilwaf:test .
+        - docker run --rm evilwaf:test --help || true
+
+
+notifications:
+  email:
+    on_success: never
+    on_failure: always

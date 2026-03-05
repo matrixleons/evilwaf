@@ -1,0 +1,12 @@
+https://viewdns.info/iphistory/?domain={domain}
+https://completedns.com/dns-history/
+https://securitytrails.com/domain/{domain}/history/a
+https://dnschecker.org/dns-history.php?query={domain}
+https://www.robtex.com/dns-lookup/{domain}
+https://hackertarget.com/dns-lookup/?q={domain}
+https://mxtoolbox.com/SuperTool.aspx?action=a%3a{domain}
+https://whoisrequest.com/history/{domain}/
+https://dnshistory.org/dns-records/{domain}
+https://www.ip-tracker.org/locator/dns-history.php?d={domain}
+https://dnsdumpster.com/
+https://centralops.net/co/DomainDossier.aspx?addr={domain}&dom_whois=true&dom_dns=true
