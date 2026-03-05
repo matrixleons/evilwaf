@@ -33,7 +33,7 @@
 
 <p align="center">
   <img alt="Screenshot"
-  src="https://raw.githubusercontent.com/matrixleons/evilwaf/main/media/img/screen.jpg"
+  src="https://raw.githubusercontent.com/matrixleons/evilwaf/main/media/screen.jpg"
   style="width:100%;max-width:800px;" />
 </p>
 
@@ -42,7 +42,7 @@
 
 <p align="center">
   <img alt="Screenshot"
-  src="https://raw.githubusercontent.com/matrixleons/evilwaf/main/media/img/screenshot.jpg"
+  src="https://raw.githubusercontent.com/matrixleons/evilwaf/main/media/screenshot.jpg"
   style="width:100%;max-width:800px;" />
 </p>
 
