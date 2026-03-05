@@ -169,7 +169,7 @@ python3 evilwaf.py -h
 Docker Installation
 
 docker build -t evilwaf .
-docker run -it evilwaf -d example.com
+docker run -it evilwaf -t example.com
 ```
 
 ## Usage
