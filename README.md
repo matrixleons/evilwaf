@@ -1,5 +1,5 @@
 <div align="center">
-  <img alt="Evilwaf Logo" src="https://raw.githubusercontent.com/matrixleons/evilwaf/main/media/evilwaf.png" height="400" />
+  <img alt="Evilwaf Logo" src="https://raw.githubusercontent.com/matrixleons/evilwaf/main/media/evilwaf.png" height="350" />
   <br />
   
 
