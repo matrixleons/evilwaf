@@ -360,6 +360,7 @@ class EvilWAFTUI:
         server_ip:  Optional[str] = None,
         waf_name:   Optional[str] = None,
         enable_tor: bool = False,
+        upstream_proxy_count: int = 0,
     ):
         self.server      = server
         self.target_url  = target_url
@@ -368,6 +369,7 @@ class EvilWAFTUI:
         self.server_ip   = server_ip
         self.waf_name    = waf_name
         self.enable_tor  = enable_tor
+        self.upstream_proxy_count = upstream_proxy_count
 
         self.traffic_data: List[ProxyRecord] = []
         self.selected_row  = 0
@@ -522,9 +524,10 @@ class EvilWAFTUI:
         waf_p  = f" | WAF: {self.waf_name}" if self.waf_name else ""
         ip_p   = f" | Origin: {self.server_ip}" if self.server_ip else ""
         tor_p  = " | TOR: ON" if self.enable_tor else ""
+        proxy_p = f" | Proxy: {self.upstream_proxy_count}" if self.upstream_proxy_count else ""
         return urwid.AttrMap(
             urwid.Text(
-                ('header', f" EvilWAF v2.4 | {h}{waf_p}{ip_p}{tor_p}   q=Quit  up/down=browse  f=follow "),
+                ('header', f" EvilWAF v2.4 | {h}{waf_p}{ip_p}{tor_p}{proxy_p}   q=Quit  up/down=browse  f=follow "),
                 align='center',
             ),
             'header',
@@ -736,6 +739,7 @@ class EvilWAFOrchestrator:
         tor_rotate_every: int,
         server_ip:        Optional[str] = None,
         target_host:      Optional[str] = None,
+        upstream_proxies: Optional[List[str]] = None,
     ):
         self._enable_tor = enable_tor
         self._running    = False
@@ -749,6 +753,7 @@ class EvilWAFOrchestrator:
             tor_rotate_every=tor_rotate_every,
             override_ip=server_ip,
             target_host=target_host,
+            upstream_proxies=upstream_proxies,
         )
 
         self._tor_table  = TorIPTable()
@@ -839,6 +844,8 @@ def main():
             "  --tor-rotate-every     Rotate TOR IP every N requests (default: 1)\n"
             "  --server-ip            Force all requests to this origin IP (WAF bypass)\n"
             "  --auto-hunt            Auto-discover origin IP behind WAF\n"
+            "  --upstream-proxy URL   Upstream proxy (http://, socks5://, socks4://)\n"
+            "  --proxy-file FILE      File with proxy URLs for rotation\n"
             "  --no-tui               Headless mode, print traffic to stdout\n"
             "\n"
             "API Keys (optional, set as environment variables):\n"
@@ -863,6 +870,10 @@ def main():
     parser.add_argument("--tor-rotate-every",      type=int, default=1)
     parser.add_argument("--server-ip",             type=str, default=None)
     parser.add_argument("--auto-hunt",             action="store_true")
+    parser.add_argument("--upstream-proxy",        type=str, default=None, metavar="URL",
+                        help="Upstream proxy URL (http://host:port, socks5://host:port)")
+    parser.add_argument("--proxy-file",            type=str, default=None, metavar="FILE",
+                        help="File with proxy URLs, one per line, for rotation")
     parser.add_argument("--no-tui",                action="store_true")
 
     args = parser.parse_args()
@@ -878,6 +889,14 @@ def main():
     if args.server_ip and args.auto_hunt:
         print("[!] --server-ip and --auto-hunt cannot be used together")
         sys.exit(1)
+
+    upstream_proxies = None
+    if args.upstream_proxy:
+        upstream_proxies = [args.upstream_proxy]
+    if args.proxy_file:
+        with open(args.proxy_file) as f:
+            file_proxies = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+        upstream_proxies = (upstream_proxies or []) + file_proxies
 
     print("[*] EvilWAF v2.4")
     print(f"[*] Target : {args.target}")
@@ -907,6 +926,9 @@ def main():
     if args.enable_tor:
         print("[*] TOR    : Enabled — rotating IP every request")
 
+    if upstream_proxies:
+        print(f"[*] Proxy  : {len(upstream_proxies)} upstream proxy(ies)")
+
     print(f"[*] Listen : {args.listen_host}:{args.listen_port}")
 
     orchestrator = EvilWAFOrchestrator(
@@ -918,6 +940,7 @@ def main():
         tor_rotate_every=args.tor_rotate_every,
         server_ip=server_ip,
         target_host=parsed.hostname,
+        upstream_proxies=upstream_proxies,
     )
 
     orchestrator.start()
@@ -962,6 +985,7 @@ def main():
                 server_ip=server_ip,
                 waf_name=waf_name,
                 enable_tor=args.enable_tor,
+                upstream_proxy_count=len(upstream_proxies) if upstream_proxies else 0,
             )
             tui.start()
     except KeyboardInterrupt:
