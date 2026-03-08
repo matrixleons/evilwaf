@@ -20,6 +20,9 @@
 - **TCP Fingerprint Rotation** — Rotates TCP stack options per request to avoid behavioral detection.
 - **TLS Fingerprint Rotation** — Rotates TLS fingerprint (JA3/JA4 style) paired with TCP profiles.
 - **Tor IP Rotation** — Routes traffic through Tor and rotates exit IP every request automatically.
+
+- **Proxy pool IP Rotation** - rotates IP every request automatically through external proxy's 
+
 - **Origin IP Hunter** — Discovers the real server IP behind the WAF using 10 parallel scanners:
   - DNS history, SSL certificate analysis, subdomain enumeration
   - DNS misconfiguration, cloud leak detection, GitHub leak search
