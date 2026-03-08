@@ -309,7 +309,7 @@ class TorIPScrollPanel:
         self._walker     = urwid.SimpleFocusListWalker([])
         self._last_count = 0
 
-        # Header — Wireshark style: black bg, white text
+      
         hdr = urwid.AttrMap(
             urwid.Columns([
                 ('fixed', 5,  urwid.Text(('ws_hdr', ' TN'))),
