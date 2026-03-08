@@ -133,6 +133,92 @@ class OriginScannersTest(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(cert_ok)
                 self.assertTrue(http_ok)
 
+    async def test_ssl_probe_cert_san(self):
+        s = o.SSLCertificateScanner("example.com")
+
+        class Sock:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def getpeercert(self):
+                return {"subjectAltName": [("DNS", "*.example.com")]}
+
+        class Ctx:
+            check_hostname = False
+            verify_mode = None
+
+            def wrap_socket(self, raw, server_hostname=None):
+                return Sock()
+
+        with mock.patch.object(o.ssl, "create_default_context", return_value=Ctx()):
+            with mock.patch.object(o.socket, "create_connection", return_value=object()):
+                self.assertTrue(s._probe_cert_san("8.8.8.8"))
+
+    async def test_dns_misconfig_internal_methods(self):
+        s = o.DNSMisconfigurationScanner("example.com")
+
+        class RData:
+            def __init__(self, t):
+                self._t = t
+
+            def to_text(self):
+                return self._t
+
+        def resolve_side_effect(target, rt):
+            if rt == "NS":
+                ns = mock.Mock()
+                ns.target = "ns.example.com."
+                return [ns]
+            return [RData("mail.example.com 8.8.8.8")]
+
+        s.resolver.resolve = mock.Mock(side_effect=resolve_side_effect)
+        with mock.patch.object(o.socket, "gethostbyname", return_value="8.8.4.4"):
+            out = s._query_record("MX")
+            self.assertTrue(out)
+
+        node = mock.Mock()
+        rdataset = [RData("1.1.1.1")]
+        node.rdatasets = [rdataset]
+        zone = mock.Mock()
+        zone.nodes = {"a": node}
+        with mock.patch.object(o.dns.zone, "from_xfr", return_value=zone):
+            with mock.patch.object(o.dns.query, "xfr", return_value=object()):
+                out2 = s._check_zone_transfer()
+                self.assertIn("1.1.1.1", out2)
+
+    async def test_cloud_and_http_header_internal_methods(self):
+        c = o.CloudProviderLeakScanner("example.com")
+        h = o.HTTPHeaderLeakScanner("example.com")
+
+        cname = mock.Mock()
+        cname.target = "edge.azure.com."
+        c.resolver.resolve = mock.Mock(return_value=[cname])
+        with mock.patch.object(o, "_CLOUD_ASN_PATTERNS", {"azure": ["azure.com"]}):
+            with mock.patch.object(o.socket, "gethostbyname", return_value="8.8.8.8"):
+                with mock.patch.object(o, "_is_waf_ip", return_value=(False, o.WAFVendor.UNKNOWN)):
+                    out = c._follow_cname_chain("example.com")
+                    self.assertTrue(out)
+
+        txt = mock.Mock()
+        txt.to_text = mock.Mock(return_value="v=spf1 include:mx.example.com")
+        c.resolver.resolve = mock.Mock(return_value=[txt])
+        with mock.patch.object(o.socket, "gethostbyname", return_value="8.8.8.8"):
+            with mock.patch.object(o, "_is_waf_ip", return_value=(False, o.WAFVendor.UNKNOWN)):
+                out2 = c._check_txt_spf_includes()
+                self.assertTrue(out2)
+
+        resp = mock.Mock()
+        resp.getheader = mock.Mock(return_value="origin.example.net 9.9.9.9")
+        conn = mock.Mock()
+        conn.getresponse = mock.Mock(return_value=resp)
+        with mock.patch.object(o.http.client, "HTTPSConnection", return_value=conn):
+            with mock.patch.object(o.socket, "gethostbyname", return_value="9.9.9.9"):
+                out3 = h._probe_path("/")
+                self.assertIn("9.9.9.9", out3)
+
 
 if __name__ == "__main__":
     unittest.main()

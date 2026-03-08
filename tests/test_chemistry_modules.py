@@ -1,5 +1,6 @@
 import unittest
 from unittest import mock
+import threading
 
 from _deps import install_dependency_stubs
 
@@ -64,6 +65,25 @@ class ChemistryModulesTest(unittest.TestCase):
             self.assertIn("proxies", r.per_request_proxy())
             self.assertIn("available_proxies", r.get_stats())
 
+    def test_proxy_rotator_probe_and_fallback_paths(self):
+        r = p.ProxyRotator.__new__(p.ProxyRotator)
+        r._proxies = [{"type": 1, "addr": "127.0.0.1", "port": 9050, "url": "socks5://127.0.0.1:9050"}]
+        r._lock = threading.Lock()
+        r._current_index = 0
+        r._rotation_counter = 0
+
+        s = mock.Mock()
+        with mock.patch.object(p.socks, "create_connection", return_value=s):
+            alive = p.ProxyRotator._probe_proxies(r)
+            self.assertEqual(len(alive), 1)
+
+        r._proxies = []
+        with mock.patch.object(p.socket, "create_connection", return_value=mock.Mock()) as cc:
+            out = p.ProxyRotator.create_connection(r, "example.com", 80)
+            self.assertTrue(cc.called)
+        self.assertEqual(p.ProxyRotator.get_proxy_dict(r), {})
+        self.assertIn("proxies", p.ProxyRotator.per_request_proxy(r))
+
     def test_tor_rotator_flow(self):
         with mock.patch.object(tor.TorRotator, "_probe_proxies", return_value=[{"http": "socks5://127.0.0.1:9050", "https": "socks5://127.0.0.1:9050"}]):
             with mock.patch.object(tor.TorRotator, "_probe_control_ports", return_value=[9051]):
@@ -89,6 +109,30 @@ class ChemistryModulesTest(unittest.TestCase):
                     ok, ip = r.rotate_and_verify(max_attempts=1)
                     self.assertTrue(ok)
                     self.assertEqual(ip, "203.0.113.6")
+
+    def test_tor_rotator_internal_probes_and_controller(self):
+        r = tor.TorRotator.__new__(tor.TorRotator)
+        r.control_password = ""
+        r.control_port = 9051
+        r.tor_proxy = "socks5://127.0.0.1:9050"
+        r._available_control_ports = [9051]
+
+        fake = mock.Mock()
+        fake.__enter__ = mock.Mock(return_value=fake)
+        fake.__exit__ = mock.Mock(return_value=False)
+
+        good_resp = mock.Mock()
+        good_resp.json.return_value = {"IsTor": True}
+        with mock.patch.object(tor.requests, "get", return_value=good_resp):
+            alive = tor.TorRotator._probe_proxies(r)
+            self.assertTrue(alive)
+
+        with mock.patch.object(tor.Controller, "from_port", return_value=fake):
+            ports = tor.TorRotator._probe_control_ports(r)
+            self.assertTrue(ports)
+            self.assertTrue(tor.TorRotator._rotate_all_circuits(r))
+            c = tor.TorRotator._controller(r)
+            self.assertIsNotNone(c)
 
 
 if __name__ == "__main__":
