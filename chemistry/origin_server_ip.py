@@ -326,7 +326,7 @@ class OriginVerifier:
                     ctx.check_hostname = False
                     ctx.verify_mode    = ssl.CERT_NONE
                     raw  = socket.create_connection((ip, port), timeout=5)
-                    conn = ssl.wrap_socket(raw, server_hostname=self.domain)
+                    conn = ctx.wrap_socket(raw, server_hostname=self.domain)
                 else:
                     conn = socket.create_connection((ip, port), timeout=5)
 

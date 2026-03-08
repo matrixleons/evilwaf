@@ -20,6 +20,7 @@ from core.interceptor import (
     ProxyRecord,
     create_interceptor,
 )
+from core.proxy_file import load_proxy_file
 from core.waf_detector import WAFDetector
 from chemistry.origin_server_ip import OriginServerIPHunter, ReconReport, OriginResult
 
@@ -892,8 +893,7 @@ def main():
     if args.upstream_proxy:
         upstream_proxies = [args.upstream_proxy]
     if args.proxy_file:
-        with open(args.proxy_file) as f:
-            file_proxies = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+        file_proxies = load_proxy_file(args.proxy_file)
         upstream_proxies = (upstream_proxies or []) + file_proxies
 
     print("[*] EvilWAF v2.4")
