@@ -17,3 +17,5 @@ beautifulsoup4>=4.12.0
 lxml>=5.2.0
 dataclasses>=0.6
 python-dateutil>=2.9.0
+tls-client>=1.0.1
+scapy>=2.7.0
