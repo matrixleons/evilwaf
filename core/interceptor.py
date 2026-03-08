@@ -558,9 +558,7 @@ class TLSContextFactory:
 
     @classmethod
     def client_context(cls, alpn: List[str] = None) -> ssl.SSLContext:
-        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        ctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
         ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         try:
             ctx.set_ciphers(cls.CIPHERS)
@@ -574,8 +572,6 @@ class TLSContextFactory:
     def server_context(cls, cert_path: str, key_path: str, alpn: List[str] = None) -> ssl.SSLContext:
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
         ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         try:
             ctx.set_ciphers(cls.CIPHERS)
