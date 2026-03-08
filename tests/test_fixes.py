@@ -1,89 +1,11 @@
 import os
 import sys
 import tempfile
-import types
 import unittest
 from unittest import mock
 
-
-def _install_dependency_stubs():
-    if "tls_client" not in sys.modules:
-        tls_client = types.ModuleType("tls_client")
-
-        class _DummySession:
-            def __init__(self, *args, **kwargs):
-                pass
-
-        tls_client.Session = _DummySession
-        sys.modules["tls_client"] = tls_client
-
-    if "scapy" not in sys.modules:
-        scapy = types.ModuleType("scapy")
-        scapy_all = types.ModuleType("scapy.all")
-
-        class _DummyPacket:
-            def __truediv__(self, other):
-                return self
-
-        def _ip(*args, **kwargs):
-            return _DummyPacket()
-
-        def _tcp(*args, **kwargs):
-            return _DummyPacket()
-
-        def _sr1(*args, **kwargs):
-            return None
-
-        scapy_all.IP = _ip
-        scapy_all.TCP = _tcp
-        scapy_all.sr1 = _sr1
-        sys.modules["scapy"] = scapy
-        sys.modules["scapy.all"] = scapy_all
-
-    if "stem" not in sys.modules:
-        stem = types.ModuleType("stem")
-        stem.Signal = types.SimpleNamespace(NEWNYM="NEWNYM")
-        stem_control = types.ModuleType("stem.control")
-
-        class _DummyController:
-            @classmethod
-            def from_port(cls, port=None):
-                return cls()
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc, tb):
-                return False
-
-            def authenticate(self, password=None):
-                return None
-
-            def signal(self, sig):
-                return None
-
-        stem_control.Controller = _DummyController
-        sys.modules["stem"] = stem
-        sys.modules["stem.control"] = stem_control
-
-    if "socks" not in sys.modules:
-        socks = types.ModuleType("socks")
-        socks.SOCKS5 = 1
-        socks.SOCKS4 = 2
-        socks.HTTP = 3
-
-        class _DummySock:
-            def close(self):
-                return None
-
-        def _create_connection(*args, **kwargs):
-            return _DummySock()
-
-        socks.create_connection = _create_connection
-        sys.modules["socks"] = socks
-
-
-_install_dependency_stubs()
+from _deps import install_dependency_stubs
+install_dependency_stubs()
 
 from core.proxy_file import load_proxy_file
 import chemistry.origin_server_ip as origin_server_ip
