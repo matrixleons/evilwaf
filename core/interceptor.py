@@ -4,20 +4,17 @@ import contextlib
 import datetime
 import ipaddress
 import os
-import queue
-import random
 import re
 import select
 import socket
 import ssl
-import struct
 import tempfile
 import threading
 import time
-from dataclasses import dataclass, field
+from collections import deque
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, urlparse
 
 from cryptography import x509
@@ -33,80 +30,40 @@ try:
     import h2.events
     import h2.exceptions
     H2_AVAILABLE = True
-except ImportError:
-    H2_AVAILABLE = False
+except ImportError:  # pragma: no cover - optional dependency
+    H2_AVAILABLE = False  # pragma: no cover
 
 try:
-    import aioquic.quic.configuration
-    import aioquic.quic.connection
-    import aioquic.quic.events
-    import asyncio
+    import aioquic  # noqa: F401  # pragma: no cover
     AIOQUIC_AVAILABLE = True
-except ImportError:
-    AIOQUIC_AVAILABLE = False
+except Exception:  # pragma: no cover - optional dependency
+    AIOQUIC_AVAILABLE = False  # pragma: no cover
 
 from chemistry.tcp_options import TCPOptionsManipulator
 from chemistry.tls_rotator import TLSFingerprinter
 from chemistry.tor_rotator import TorRotator
 from chemistry.proxy_rotator import ProxyRotator
+from core.models import AdvisorDecision, InterceptedRequest, InterceptedResponse, ProxyRecord
+from core.pipeline import Forwarder, Magic, ResponseAdvisor
 
-
-@dataclass
-class InterceptedRequest:
-    method: str = "GET"
-    url: str = ""
-    path: str = ""
-    host: str = ""
-    port: int = 80
-    headers: dict = field(default_factory=dict)
-    body: bytes = b""
-    cookies: dict = field(default_factory=dict)
-    query_params: dict = field(default_factory=dict)
-    timestamp: float = 0.0
-    source_pid: Optional[int] = None
-    source_tool: Optional[str] = None
-    is_tunnel: bool = False
-    is_https: bool = False
-    sni_hostname: Optional[str] = None
-    tls_version: Optional[str] = None
-    http_version: str = "1.1"
-
-
-@dataclass
-class InterceptedResponse:
-    status_code: int = 0
-    status_text: str = ""
-    headers: dict = field(default_factory=dict)
-    body: bytes = b""
-    cookies: dict = field(default_factory=dict)
-    response_time: float = 0.0
-    timestamp: float = 0.0
-    is_https: bool = False
-    tls_version: Optional[str] = None
-    http_version: str = "1.1"
-
-
-@dataclass
-class ProxyRecord:
-    request: InterceptedRequest = field(default_factory=InterceptedRequest)
-    response: InterceptedResponse = field(default_factory=InterceptedResponse)
-    technique_applied: str = ""
-    passed: bool = False
-    blocked: bool = False
-    total_time: float = 0.0
-    intercepted_https: bool = False
-    decryption_successful: bool = False
-
-
-@dataclass
-class AdvisorDecision:
-    action: str = "forward"
-    technique: str = ""
-    delay: float = 0.0
-    rotate_ip: bool = False
-    reason: str = ""
-    forward_response: bool = True
-    next_protocol: Optional[str] = None
+__all__ = [
+    "AdvisorDecision",
+    "InterceptedRequest",
+    "InterceptedResponse",
+    "ProxyRecord",
+    "CertificateAuthority",
+    "H2Connection",
+    "H1Parser",
+    "TLSContextFactory",
+    "MITMHandshaker",
+    "H2SessionHandler",
+    "ResponseAdvisor",
+    "Magic",
+    "Forwarder",
+    "ThreadedHTTPServer",
+    "Interceptor",
+    "create_interceptor",
+]
 
 
 class CertificateAuthority:
@@ -141,7 +98,7 @@ class CertificateAuthority:
             x509.NameAttribute(NameOID.ORGANIZATION_NAME, "EvilWAF MITM Proxy"),
             x509.NameAttribute(NameOID.COMMON_NAME, "evilwaf-ca"),
         ])
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
         ca_cert = (
             x509.CertificateBuilder()
             .subject_name(subject)
@@ -254,7 +211,7 @@ class CertificateAuthority:
             except Exception:
                 pass
         subject_attrs.append(x509.NameAttribute(NameOID.ORGANIZATION_NAME, "EvilWAF Proxy"))
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
         cert = (
             x509.CertificateBuilder()
             .subject_name(x509.Name(subject_attrs))
@@ -557,10 +514,8 @@ class TLSContextFactory:
     )
 
     @classmethod
-    def client_context(cls, alpn: List[str] = None) -> ssl.SSLContext:
-        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+    def client_context(cls, alpn: Optional[List[str]] = None) -> ssl.SSLContext:
+        ctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
         ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         try:
             ctx.set_ciphers(cls.CIPHERS)
@@ -571,11 +526,14 @@ class TLSContextFactory:
         return ctx
 
     @classmethod
-    def server_context(cls, cert_path: str, key_path: str, alpn: List[str] = None) -> ssl.SSLContext:
+    def server_context(
+        cls,
+        cert_path: str,
+        key_path: str,
+        alpn: Optional[List[str]] = None,
+    ) -> ssl.SSLContext:
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
         ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         try:
             ctx.set_ciphers(cls.CIPHERS)
@@ -1012,127 +970,6 @@ class H2SessionHandler:
         return []
 
 
-class ResponseAdvisor:
-    ROTATE_ON = (429, 503, 509)
-    RETRY_TECH = (403, 406, 418)
-    PASS = (200, 201, 204, 301, 302, 304, 404)
-
-    def __init__(self, magic: "Magic", max_retries: int = 3, retry_delay: float = 1.5):
-        self._magic = magic
-        self._max = max_retries
-        self._delay = retry_delay
-        self._counts: Dict[str, int] = {}
-        self._lock = threading.Lock()
-
-    def advise(self, response: InterceptedResponse, request: InterceptedRequest, record: ProxyRecord) -> AdvisorDecision:
-        code = response.status_code
-        if code in self.PASS:
-            self._reset(request.host)
-            return AdvisorDecision(action="forward", reason=f"{code} pass")
-        if code in self.RETRY_TECH:
-            return self._retry(request, record, reason=f"{code} waf block")
-        if code in self.ROTATE_ON:
-            return self._rotate_and_retry(response, request, record)
-        return AdvisorDecision(action="forward", reason=f"{code} default")
-
-    def _retry(self, request: InterceptedRequest, record: ProxyRecord, reason: str) -> AdvisorDecision:
-        if not self._has_left(request.host):
-            return AdvisorDecision(action="forward", reason="max retries")
-        self._inc(request.host)
-        return AdvisorDecision(action="retry", delay=self._delay, reason=reason, forward_response=False)
-
-    def _rotate_and_retry(self, response: InterceptedResponse, request: InterceptedRequest, record: ProxyRecord) -> AdvisorDecision:
-        if not self._has_left(request.host):
-            return AdvisorDecision(action="forward", reason="max retries")
-        delay = self._get_delay(response)
-        self._inc(request.host)
-        return AdvisorDecision(action="rotate_and_retry", delay=delay, rotate_ip=True, reason="rate limited", forward_response=False)
-
-    def _has_left(self, host: str) -> bool:
-        with self._lock:
-            return self._counts.get(host, 0) < self._max
-
-    def _inc(self, host: str):
-        with self._lock:
-            self._counts[host] = self._counts.get(host, 0) + 1
-
-    def _reset(self, host: str):
-        with self._lock:
-            self._counts.pop(host, None)
-
-    def _get_delay(self, response: InterceptedResponse) -> float:
-        ra = response.headers.get("retry-after", "").strip()
-        if ra.isdigit():
-            return min(float(ra), 60.0)
-        return self._delay
-
-
-class Magic:
-    def __init__(self, tcp: Optional[TCPOptionsManipulator] = None, tls: Optional[TLSFingerprinter] = None, tor: Optional[TorRotator] = None):
-        self._tcp = tcp or TCPOptionsManipulator()
-        self._tls = tls or TLSFingerprinter()
-        self._tor = tor or TorRotator()
-        self._lock = threading.Lock()
-        self._request_count = 0
-
-    def apply(self, technique: str = "") -> Dict[str, Any]:
-        with self._lock:
-            self._request_count += 1
-        tcp_opts = self._tcp.per_request_options()
-        tls_sess, tls_id = self._tls.paired_with_tcp(tcp_opts.get("profile", ""))
-        result = {
-            "tcp": tcp_opts,
-            "tls": {"session": tls_sess, "identifier": tls_id},
-            "tor": {},
-        }
-        if technique == "ip_rotation" or self._tor.should_rotate(self._request_count):
-            if self._tor.is_tor_alive():
-                ok, ip = self._tor.rotate_and_verify()
-                result["tor"] = {"active": ok, "ip": ip, "proxies": self._tor.get_proxy_dict()}
-        return result
-
-    def _bind_to_tor(self) -> Dict[str, Any]:
-        if not self._tor.is_tor_alive():
-            return {"active": False}
-        ok, ip = self._tor.rotate_and_verify()
-        return {"active": ok, "ip": ip, "proxies": self._tor.get_proxy_dict()}
-
-    def error_solver(self, error: Exception, context: str = "") -> bool:
-        if isinstance(error, ssl.SSLError):
-            try:
-                self._tls.rotate()
-            except Exception:
-                pass
-        if isinstance(error, (ConnectionResetError, BrokenPipeError, TimeoutError)):
-            try:
-                self._tcp.rotate()
-            except Exception:
-                pass
-        return True
-
-
-class Forwarder:
-    def forward(self, response: InterceptedResponse, handler: BaseHTTPRequestHandler) -> bool:
-        try:
-            if response.status_code == 0:
-                response.status_code = 502
-                response.status_text = "Bad Gateway"
-            handler.send_response(response.status_code, response.status_text)
-            skip = {"transfer-encoding", "connection", "keep-alive"}
-            for k, v in response.headers.items():
-                if k.lower() not in skip:
-                    handler.send_header(k, v)
-            handler.send_header("Connection", "close")
-            if response.body:
-                handler.send_header("Content-Length", str(len(response.body)))
-            handler.end_headers()
-            if response.body and handler.command != "HEAD":
-                handler.wfile.write(response.body)
-            return True
-        except Exception:
-            return False
-
-
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
     allow_reuse_address = True
@@ -1150,6 +987,7 @@ class Interceptor:
         override_ip: Optional[str] = None,
         target_host: Optional[str] = None,
         upstream_proxies: Optional[List[str]] = None,
+        record_limit: int = 20000,
     ):
         self._host = listen_host
         self._port = listen_port
@@ -1157,13 +995,17 @@ class Interceptor:
         self._running = False
         self._server: Optional[ThreadedHTTPServer] = None
         self._thread: Optional[threading.Thread] = None
-        self._records: List[ProxyRecord] = []
+        self._records: Deque[ProxyRecord] = deque(maxlen=max(1000, record_limit))
         self._records_lock = threading.Lock()
 
         self._proxy_rotator = ProxyRotator(proxy_urls=upstream_proxies) if upstream_proxies else None
 
         self.ca = CertificateAuthority()
-        self._handshaker = MITMHandshaker(self.ca, proxy_rotator=self._proxy_rotator)
+        self._handshaker = MITMHandshaker(
+            self.ca,
+            override_ip=self._override_ip,
+            proxy_rotator=self._proxy_rotator,
+        )
         self._forwarder = Forwarder()
 
         self._tor = TorRotator(
@@ -1173,7 +1015,12 @@ class Interceptor:
         )
         self._tcp_manip = TCPOptionsManipulator()
         self._tls_fp = TLSFingerprinter()
-        self._magic = Magic(tcp=self._tcp_manip, tls=self._tls_fp, tor=self._tor)
+        self._magic = Magic(
+            tcp=self._tcp_manip,
+            tls=self._tls_fp,
+            tor=self._tor,
+            rotate_every=tor_rotate_every,
+        )
         self._advisor = ResponseAdvisor(self._magic)
 
         self.intercept_https = intercept_https
@@ -1216,7 +1063,8 @@ class Interceptor:
             req.host = host
             req.port = port
 
-            sock = self._create_upstream_connection(host, port, timeout=30)
+            connect_host = self._override_ip or host
+            sock = self._create_upstream_connection(connect_host, port, timeout=30)
 
             if parsed.scheme == "https":
                 ctx = TLSContextFactory.client_context(alpn=["http/1.1"])
@@ -1378,8 +1226,6 @@ class Interceptor:
                 parts = self.path.split(":")
                 remote_host = parts[0]
                 remote_port = int(parts[1]) if len(parts) > 1 else 443
-                start_time = time.time()
-
                 if interceptor_ref.intercept_https:
                     self.send_response(200, "Connection Established")
                     self.send_header("Proxy-Agent", "EvilWAF")
@@ -1496,6 +1342,7 @@ def create_interceptor(
     override_ip: Optional[str] = None,
     target_host: Optional[str] = None,
     upstream_proxies: Optional[List[str]] = None,
+    record_limit: int = 20000,
 ) -> Interceptor:
     return Interceptor(
         listen_host=listen_host,
@@ -1507,5 +1354,6 @@ def create_interceptor(
         override_ip=override_ip,
         target_host=target_host,
         upstream_proxies=upstream_proxies,
+        record_limit=record_limit,
     )    
     

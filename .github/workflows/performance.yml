@@ -1,0 +1,68 @@
+name: Performance
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "10 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock
+
+      - name: Start local origin
+        run: |
+          python -m http.server 18080 >/tmp/origin.log 2>&1 &
+          echo $! > /tmp/origin.pid
+
+      - name: Start EvilWAF
+        run: |
+          python evilwaf.py -t http://127.0.0.1:18080 --no-tui --listen-host 127.0.0.1 --listen-port 8080 >/tmp/evilwaf.log 2>&1 &
+          echo $! > /tmp/evilwaf.pid
+          sleep 5
+
+      - name: Run benchmark
+        run: |
+          python benchmarks/proxy_benchmark.py \
+            --proxy http://127.0.0.1:8080 \
+            --target http://127.0.0.1:18080 \
+            --requests 200 \
+            --concurrency 20 > perf.txt
+          cat perf.txt
+
+      - name: Check budgets
+        run: |
+          python benchmarks/check_budgets.py perf.txt benchmarks/perf_budgets.json
+
+      - name: Upload benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: perf-results
+          path: |
+            perf.txt
+            /tmp/origin.log
+            /tmp/evilwaf.log
+
+      - name: Cleanup background services
+        if: always()
+        run: |
+          kill "$(cat /tmp/evilwaf.pid)" || true
+          kill "$(cat /tmp/origin.pid)" || true
