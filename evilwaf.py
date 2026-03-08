@@ -603,7 +603,6 @@ class EvilWAFTUI:
             self.follow_text.set_text(('tr_block', f' [PAUSED] row={self.selected_row + 1}/{len(records)}  f=resume '))
 
     def _update_tech_panel(self):
-        # Wireshark style — black bg, white text
         self.tech_walker.clear()
         entries = self.tech_table.get_recent(6)
         if not entries:
