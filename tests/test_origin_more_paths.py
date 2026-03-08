@@ -40,6 +40,13 @@ class OriginMorePathsTest(unittest.IsolatedAsyncioTestCase):
             with mock.patch.object(o.socket, "create_connection", return_value=object()):
                 self.assertTrue(v.verify_cert("8.8.8.8"))
 
+        report = o.ReconReport("example.com")
+        a = o.OriginResult("8.8.8.8", "s1", 0.5, org="X", asn="AS1", cert_verified=True, http_verified=True)
+        b = o.OriginResult("8.8.8.8", "s2", 0.9, details={"k": "v"}, verified=True)
+        report.add(a)
+        report.add(b)
+        self.assertEqual(report.best_candidate.ip, "8.8.8.8")
+
     async def test_dns_history_api_key_branches(self):
         s = o.DNSHistoryScanner("example.com")
         with mock.patch.object(o, "_DNS_HISTORY_SOURCES", ["https://d/{domain}"]):

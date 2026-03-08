@@ -203,6 +203,106 @@ class InterceptorH2Test(unittest.TestCase):
         self.assertEqual(out, [])
         self.assertTrue(c.sent or s.sent)
 
+    def test_handle_h2_to_h2_exception_branches(self):
+        class RequestReceived:
+            def __init__(self, stream_id, headers, stream_ended=None):
+                self.stream_id = stream_id
+                self.headers = headers
+                self.stream_ended = stream_ended
+
+        class DataReceived:
+            def __init__(self, stream_id, data):
+                self.stream_id = stream_id
+                self.data = data
+                self.flow_controlled_length = len(data)
+
+        class StreamEnded:
+            def __init__(self, stream_id):
+                self.stream_id = stream_id
+
+        class ResponseReceived:
+            def __init__(self, stream_id, headers, stream_ended=None):
+                self.stream_id = stream_id
+                self.headers = headers
+                self.stream_ended = stream_ended
+
+        class WindowUpdated:
+            pass
+
+        class ConnectionTerminated:
+            pass
+
+        fake_h2 = types.SimpleNamespace(
+            events=types.SimpleNamespace(
+                RequestReceived=RequestReceived,
+                DataReceived=DataReceived,
+                StreamEnded=StreamEnded,
+                ResponseReceived=ResponseReceived,
+                WindowUpdated=WindowUpdated,
+                ConnectionTerminated=ConnectionTerminated,
+            )
+        )
+
+        class BadConn:
+            def acknowledge_received_data(self, n, sid):
+                raise Exception("x")
+
+            def end_stream(self, sid):
+                raise Exception("x")
+
+        class BadEndpoint:
+            def __init__(self, batches):
+                self._batches = list(batches)
+                self.conn = BadConn()
+
+            def recv_events(self, timeout=30):
+                if self._batches:
+                    return self._batches.pop(0)
+                return []
+
+            def send_headers(self, *args, **kwargs):
+                raise Exception("x")
+
+            def send_data(self, *args, **kwargs):
+                raise Exception("x")
+
+            def _flush(self):
+                raise Exception("x")
+
+            def close(self):
+                return None
+
+        client_ep = BadEndpoint([
+            [RequestReceived(1, [(":method", "GET"), (":path", "/")]), DataReceived(1, b"a"), StreamEnded(1)],
+            [WindowUpdated(), ConnectionTerminated()],
+        ])
+        server_ep = BadEndpoint([
+            [ResponseReceived(1, {":status": "500"}), DataReceived(1, b"b"), StreamEnded(1)],
+            [ConnectionTerminated()],
+        ])
+
+        handler = i.H2SessionHandler(
+            client_tls=mock.Mock(),
+            server_tls=mock.Mock(),
+            host="example.com",
+            port=443,
+            server_alpn="h2",
+            callbacks={"record": None, "request": None, "response": None},
+            magic=mock.Mock(),
+            advisor=mock.Mock(),
+            records_list=[],
+            records_lock=threading.Lock(),
+            is_waf_block=lambda _: False,
+        )
+
+        with mock.patch("core.interceptor.h2", fake_h2, create=True):
+            with mock.patch.object(i, "H2_AVAILABLE", True):
+                with mock.patch.object(i.threading, "Thread", _InlineThread):
+                    with mock.patch.object(handler, "_make_client_h2", return_value=client_ep):
+                        with mock.patch.object(handler, "_make_server_h2", return_value=server_ep):
+                            out = handler._handle_h2_to_h2()
+        self.assertTrue(out)
+
 
 if __name__ == "__main__":
     unittest.main()

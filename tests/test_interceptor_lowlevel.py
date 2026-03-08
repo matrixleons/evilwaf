@@ -1,6 +1,10 @@
 import types
 import unittest
 from unittest import mock
+import tempfile
+import os
+import importlib
+import sys
 
 from _deps import install_dependency_stubs
 
@@ -10,6 +14,78 @@ import core.interceptor as i
 
 
 class InterceptorLowLevelTest(unittest.TestCase):
+    def test_import_success_paths_for_optional_deps(self):
+        # Exercise optional import branches for h2/aioquic.
+        h2_mod = types.ModuleType("h2")
+        h2_cfg = types.ModuleType("h2.config")
+        h2_conn = types.ModuleType("h2.connection")
+        h2_events = types.ModuleType("h2.events")
+        h2_exc = types.ModuleType("h2.exceptions")
+        aioquic = types.ModuleType("aioquic")
+        aq_quic = types.ModuleType("aioquic.quic")
+        aq_conf = types.ModuleType("aioquic.quic.configuration")
+        aq_conn = types.ModuleType("aioquic.quic.connection")
+        aq_events = types.ModuleType("aioquic.quic.events")
+
+        backup = dict(sys.modules)
+        try:
+            sys.modules.update({
+                "h2": h2_mod,
+                "h2.config": h2_cfg,
+                "h2.connection": h2_conn,
+                "h2.events": h2_events,
+                "h2.exceptions": h2_exc,
+                "aioquic": aioquic,
+                "aioquic.quic": aq_quic,
+                "aioquic.quic.configuration": aq_conf,
+                "aioquic.quic.connection": aq_conn,
+                "aioquic.quic.events": aq_events,
+            })
+            m = importlib.reload(i)
+            self.assertTrue(hasattr(m, "H2_AVAILABLE"))
+            self.assertTrue(hasattr(m, "AIOQUIC_AVAILABLE"))
+        finally:
+            sys.modules.clear()
+            sys.modules.update(backup)
+            importlib.reload(i)
+
+    def test_ca_cache_and_helpers_branches(self):
+        with tempfile.TemporaryDirectory() as d:
+            ca = i.CertificateAuthority(ca_dir=d)
+            self.assertEqual(ca._asterisk_forms(""), ["*"])
+            forms = ca._asterisk_forms("a.b.c")
+            self.assertIn("*.b.c", forms)
+
+            ca.STORE_CAP = 1
+            c1 = ca.get_certificate_for_host("a.example.com")
+            c2 = ca.get_certificate_for_host("b.example.com")
+            self.assertTrue(c1 and c2)
+
+            # Force cleanup exception paths.
+            with mock.patch("shutil.rmtree", side_effect=Exception("x")):
+                ca.cleanup()
+
+    def test_tls_server_context_fallback_cipher(self):
+        with tempfile.TemporaryDirectory() as d:
+            cert = os.path.join(d, "c.pem")
+            key = os.path.join(d, "k.pem")
+            with open(cert, "w", encoding="utf-8") as f:
+                f.write("")
+            with open(key, "w", encoding="utf-8") as f:
+                f.write("")
+
+            orig = i.ssl.SSLContext.set_ciphers
+
+            def flaky(self, value):
+                if value == i.TLSContextFactory.CIPHERS:
+                    raise i.ssl.SSLError("x")
+                return orig(self, value)
+
+            with mock.patch.object(i.ssl.SSLContext, "set_ciphers", flaky):
+                with mock.patch.object(i.ssl.SSLContext, "load_cert_chain", return_value=None):
+                    ctx = i.TLSContextFactory.server_context(cert, key, ["http/1.1"])
+                    self.assertIsNotNone(ctx)
+
     def test_h2connection_methods(self):
         class FakeH2Conn:
             def __init__(self, config=None):
@@ -95,6 +171,32 @@ class InterceptorLowLevelTest(unittest.TestCase):
                 c.send_data(1, b"x")
             c.reset_stream(1)
             c.close()
+
+    def test_h2session_handle_router_and_builders(self):
+        h = i.H2SessionHandler(
+            client_tls=mock.Mock(),
+            server_tls=mock.Mock(),
+            host="x",
+            port=443,
+            server_alpn="h2",
+            callbacks={},
+            magic=mock.Mock(),
+            advisor=mock.Mock(),
+            records_list=[],
+            records_lock=i.threading.Lock(),
+            is_waf_block=lambda _: False,
+        )
+
+        with mock.patch.object(i, "H2_AVAILABLE", False):
+            self.assertEqual(h.handle(), [])
+            self.assertIsNone(h._make_client_h2())
+            self.assertIsNone(h._make_server_h2())
+
+        with mock.patch.object(i, "H2_AVAILABLE", True):
+            with mock.patch.object(i, "H2Connection", side_effect=Exception("x")):
+                self.assertIsNone(h._make_client_h2())
+                self.assertIsNone(h._make_server_h2())
+        self.assertTrue(h._make_server_h1())
 
     def test_h1parser_special_branches(self):
         s = mock.Mock()
