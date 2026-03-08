@@ -32,6 +32,8 @@ class WAFDetectorTest(unittest.TestCase):
 
         search = self.det.search_pattern("custom")
         self.assertTrue(any("CustomWAF" in x[0] for x in search))
+        info_none = self.det.get_waf_info("nope")
+        self.assertIsNone(info_none)
         self.assertTrue(self.det.remove_signature("custom"))
         self.assertFalse(self.det.remove_signature("custom"))
 
@@ -40,6 +42,10 @@ class WAFDetectorTest(unittest.TestCase):
         self.assertTrue(len(names) > 0)
         listed = self.det.list_all_wafs()
         self.assertTrue(any(name in listed for name in names))
+        sig = self.det.waf_signatures["cloudflare"]
+        self.assertTrue(self.det._check_response_match("x", {"CF-RAY": "v"}, sig))
+        results = self.det.search_pattern("cf-ray")
+        self.assertTrue(results)
 
 
 if __name__ == "__main__":

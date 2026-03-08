@@ -17,8 +17,18 @@ class ChemistryModulesTest(unittest.TestCase):
         m = t.TCPOptionsManipulator()
         prof = m.get_profile("chrome")
         self.assertIn("options", prof)
+        self.assertIn("options", m.firefox_profile())
+        self.assertIn("options", m.safari_profile())
+        self.assertIn("options", m.edge_profile())
+        self.assertIn("options", m.linux_kernel_profile())
+        self.assertIn("options", m.windows_11_profile())
+        self.assertIn("options", m.macos_ventura_profile())
+        self.assertIn("options", m.android_profile())
+        self.assertIn("options", m.ios_profile())
         r = m.rotate()
         self.assertIn("window", r)
+        self.assertIn("options", m.get_profile())
+        self.assertIn("rotation_count", m.per_request_options())
 
         class Resp:
             def haslayer(self, layer):
@@ -32,6 +42,8 @@ class ChemistryModulesTest(unittest.TestCase):
 
         with mock.patch.object(t, "sr1", return_value=Resp()):
             self.assertIsNotNone(m.send_syn("8.8.8.8", 443, "chrome"))
+        with mock.patch.object(t, "sr1", return_value=None):
+            self.assertIsNone(m.send_syn("8.8.8.8", 443, "chrome"))
 
     def test_tls_fingerprinter_paths(self):
         f = tls.TLSFingerprinter()
@@ -46,9 +58,13 @@ class ChemistryModulesTest(unittest.TestCase):
 
         _, mapped = f.paired_with_tcp("windows11")
         self.assertEqual(mapped, "edge_120")
+        _, fallback = f.paired_with_tcp("unknown-profile")
+        self.assertTrue(fallback)
 
         data = f.per_request_session()
         self.assertIn("session", data)
+        _, random_custom = f.get_custom_session()
+        self.assertTrue(random_custom)
 
     def test_proxy_rotator_flow(self):
         with mock.patch.object(p.ProxyRotator, "_probe_proxies", return_value=[]):
@@ -76,6 +92,9 @@ class ChemistryModulesTest(unittest.TestCase):
         with mock.patch.object(p.socks, "create_connection", return_value=s):
             alive = p.ProxyRotator._probe_proxies(r)
             self.assertEqual(len(alive), 1)
+        with mock.patch.object(p.socks, "create_connection", side_effect=Exception("x")):
+            alive2 = p.ProxyRotator._probe_proxies(r)
+            self.assertEqual(alive2, [])
 
         r._proxies = []
         with mock.patch.object(p.socket, "create_connection", return_value=mock.Mock()) as cc:
@@ -83,6 +102,10 @@ class ChemistryModulesTest(unittest.TestCase):
             self.assertTrue(cc.called)
         self.assertEqual(p.ProxyRotator.get_proxy_dict(r), {})
         self.assertIn("proxies", p.ProxyRotator.per_request_proxy(r))
+        parsed_default = p.ProxyRotator._parse_proxy_url(r, "://bad")
+        self.assertIsNotNone(parsed_default)
+        self.assertEqual(parsed_default["scheme"], "socks5")
+        self.assertIsNone(p.ProxyRotator._parse_proxy_url(r, "gopher://x"))
 
     def test_tor_rotator_flow(self):
         with mock.patch.object(tor.TorRotator, "_probe_proxies", return_value=[{"http": "socks5://127.0.0.1:9050", "https": "socks5://127.0.0.1:9050"}]):
@@ -133,6 +156,9 @@ class ChemistryModulesTest(unittest.TestCase):
             self.assertTrue(tor.TorRotator._rotate_all_circuits(r))
             c = tor.TorRotator._controller(r)
             self.assertIsNotNone(c)
+        with mock.patch.object(tor.Controller, "from_port", side_effect=Exception("x")):
+            ports2 = tor.TorRotator._probe_control_ports(r)
+            self.assertEqual(ports2, [])
 
 
 if __name__ == "__main__":
