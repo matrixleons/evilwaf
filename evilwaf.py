@@ -383,7 +383,7 @@ class EvilWAFTUI:
             ('normal',      'white',         'dark blue'),
             ('status',      'black,bold',    'dark cyan'),
 
-            # Traffic Monitor — background nyeupe (upande wa kushoto)
+            # Traffic Monitor 
             ('tr_normal',   'black',         'white'),
             ('tr_even',     'black',         'white'),
             ('tr_odd',      'dark blue',     'white'),
@@ -401,7 +401,7 @@ class EvilWAFTUI:
             ('tr_size',     'black,bold',    'white'),
             ('tr_proto',    'black,bold',    'white'),
 
-            # Wireshark style — panels zote za kulia: black bg, white text
+          
             ('ws_bg',       'white',         'black'),
             ('ws_hdr',      'black,bold',    'dark cyan'),
             ('ws_label',    'white,bold',    'black'),
@@ -469,7 +469,7 @@ class EvilWAFTUI:
     def _build_right(self) -> list:
         panels = []
 
-        # Tor panel — Wireshark style
+        # Tor panel 
         if self.enable_tor:
             self._tor_panel = TorIPScrollPanel(self.tor_table)
             panels.append(('weight', 2, self._tor_panel.widget))
@@ -495,7 +495,7 @@ class EvilWAFTUI:
             'ws_bg',
         )))
 
-        # Server IP panel — Wireshark style
+        # Server IP panel
         self.server_ip_text = urwid.Text("")
         if self.server_ip:
             panels.append(('pack', urwid.AttrMap(
@@ -506,7 +506,7 @@ class EvilWAFTUI:
                 'ws_bg',
             )))
 
-        # Live Activity panel — Wireshark style
+        # Live Activity panel
         self.live_walker = urwid.SimpleFocusListWalker([])
         panels.append(('weight', 1, urwid.AttrMap(
             urwid.LineBox(
