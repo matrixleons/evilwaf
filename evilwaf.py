@@ -474,7 +474,7 @@ class EvilWAFTUI:
             self._tor_panel = TorIPScrollPanel(self.tor_table)
             panels.append(('weight', 2, self._tor_panel.widget))
 
-        # Active Techniques — Wireshark style
+        # Active Techniques 
         self.tech_walker = urwid.SimpleFocusListWalker([])
         tech_hdr = urwid.AttrMap(
             urwid.Columns([
