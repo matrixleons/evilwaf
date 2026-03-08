@@ -48,6 +48,7 @@ except ImportError:
 from chemistry.tcp_options import TCPOptionsManipulator
 from chemistry.tls_rotator import TLSFingerprinter
 from chemistry.tor_rotator import TorRotator
+from chemistry.proxy_rotator import ProxyRotator
 
 
 @dataclass
@@ -587,9 +588,11 @@ class TLSContextFactory:
 
 class MITMHandshaker:
     """we use override_ip to force tool to pass body direct to server ip not through web """
-    def __init__(self, ca: CertificateAuthority, override_ip: Optional[str] = None):
+    def __init__(self, ca: CertificateAuthority, override_ip: Optional[str] = None,
+                 proxy_rotator: Optional[ProxyRotator] = None):
         self.ca          = ca
         self.override_ip = override_ip
+        self._proxy_rotator = proxy_rotator
 
     def perform(self, client_sock: socket.socket, hostname: str, port: int) -> Dict[str, Any]:
         result: Dict[str, Any] = {
@@ -608,8 +611,11 @@ class MITMHandshaker:
             client_tls = server_ctx.wrap_socket(client_sock, server_side=True)
 
             connect_host = self.override_ip if self.override_ip else hostname
-            server_raw   = socket.create_connection((connect_host, port), timeout=15)
-            server_raw.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            if self._proxy_rotator:
+                server_raw = self._proxy_rotator.create_connection(connect_host, port, timeout=15)
+            else:
+                server_raw = socket.create_connection((connect_host, port), timeout=15)
+                server_raw.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
             client_alpn   = client_tls.selected_alpn_protocol() or "http/1.1"
             upstream_alpn = ["h2", "http/1.1"] if client_alpn == "h2" and H2_AVAILABLE else ["http/1.1"]
@@ -1143,6 +1149,7 @@ class Interceptor:
         tor_rotate_every: int = 5,
         override_ip: Optional[str] = None,
         target_host: Optional[str] = None,
+        upstream_proxies: Optional[List[str]] = None,
     ):
         self._host = listen_host
         self._port = listen_port
@@ -1153,8 +1160,10 @@ class Interceptor:
         self._records: List[ProxyRecord] = []
         self._records_lock = threading.Lock()
 
+        self._proxy_rotator = ProxyRotator(proxy_urls=upstream_proxies) if upstream_proxies else None
+
         self.ca = CertificateAuthority()
-        self._handshaker = MITMHandshaker(self.ca)
+        self._handshaker = MITMHandshaker(self.ca, proxy_rotator=self._proxy_rotator)
         self._forwarder = Forwarder()
 
         self._tor = TorRotator(
@@ -1185,6 +1194,13 @@ class Interceptor:
     def _is_waf_block(self, code: int) -> bool:
         return code in {403, 406, 407, 409, 418, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524, 525, 526}
 
+    def _create_upstream_connection(self, host: str, port: int, timeout: int = 15) -> socket.socket:
+        if self._proxy_rotator:
+            return self._proxy_rotator.create_connection(host, port, timeout)
+        sock = socket.create_connection((host, port), timeout=timeout)
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        return sock
+
     def _process_http_request(self, req: InterceptedRequest) -> InterceptedResponse:
         resp = InterceptedResponse(timestamp=time.time())
         start = time.time()
@@ -1200,8 +1216,7 @@ class Interceptor:
             req.host = host
             req.port = port
 
-            sock = socket.create_connection((host, port), timeout=30)
-            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            sock = self._create_upstream_connection(host, port, timeout=30)
 
             if parsed.scheme == "https":
                 ctx = TLSContextFactory.client_context(alpn=["http/1.1"])
@@ -1406,7 +1421,7 @@ class Interceptor:
                     else:
                         interceptor_ref.https_errors += 1
                         try:
-                            remote_sock = socket.create_connection((remote_host, remote_port), timeout=15)
+                            remote_sock = interceptor_ref._create_upstream_connection(remote_host, remote_port, timeout=15)
                             interceptor_ref.https_tunneled += 1
                             interceptor_ref._handle_tunnel(self.request, remote_sock)
                             try:
@@ -1421,7 +1436,7 @@ class Interceptor:
                         return
 
                 try:
-                    remote_sock = socket.create_connection((remote_host, remote_port), timeout=15)
+                    remote_sock = interceptor_ref._create_upstream_connection(remote_host, remote_port, timeout=15)
                     self.send_response(200, "Connection Established")
                     self.send_header("Proxy-Agent", "EvilWAF")
                     self.end_headers()
@@ -1479,7 +1494,8 @@ def create_interceptor(
     tor_password: str = "",
     tor_rotate_every: int = 5,
     override_ip: Optional[str] = None,
-    target_host: Optional[str] = None,   
+    target_host: Optional[str] = None,
+    upstream_proxies: Optional[List[str]] = None,
 ) -> Interceptor:
     return Interceptor(
         listen_host=listen_host,
@@ -1488,7 +1504,8 @@ def create_interceptor(
         tor_control_port=tor_control_port,
         tor_password=tor_password,
         tor_rotate_every=tor_rotate_every,
-        override_ip=override_ip, # use server ip
+        override_ip=override_ip,
         target_host=target_host,
+        upstream_proxies=upstream_proxies,
     )    
     

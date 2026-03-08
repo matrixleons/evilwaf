@@ -193,6 +193,11 @@ python3 evilwaf.py -t https://target.com --enable-tor
 Headless Mode (No TUI)
 python3 evilwaf.py -t https://target.com --no-tui
 
+Upstream Proxy (route through external proxy)
+python3 evilwaf.py -t https://target.com --upstream-proxy socks5://127.0.0.1:1080
+python3 evilwaf.py -t https://target.com --upstream-proxy http://user:pass@proxy.com:8080
+python3 evilwaf.py -t https://target.com --proxy-file proxies.txt
+
 Custom Listen Address and Port
 python3 evilwaf.py -t https://target.com --listen-host 0.0.0.0 --listen-port 9090
 

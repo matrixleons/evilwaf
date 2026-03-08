@@ -8,6 +8,7 @@ hpack>=4.0.0
 hyperframe>=6.0.1
 aioquic>=1.0.0
 stem>=1.8.2
+PySocks>=1.7.1
 urwid>=2.1.2
 asyncio>=3.4.3
 dnspython>=2.6.0
