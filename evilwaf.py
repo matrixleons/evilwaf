@@ -631,7 +631,6 @@ class EvilWAFTUI:
         ])
 
     def _update_live_panel(self):
-        # Wireshark style — black bg, white text
         self.live_walker.clear()
         for rec in reversed(self.server.get_records()[-15:]):
             req  = rec.request
