@@ -46,6 +46,10 @@ class WAFDetectorTest(unittest.TestCase):
         self.assertTrue(self.det._check_response_match("x", {"CF-RAY": "v"}, sig))
         results = self.det.search_pattern("cf-ray")
         self.assertTrue(results)
+        results_h = self.det.search_pattern("cloudflare")
+        self.assertTrue(results_h)
+        results_c = self.det.search_pattern("__cf_bm")
+        self.assertTrue(results_c)
 
 
 if __name__ == "__main__":
