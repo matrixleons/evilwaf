@@ -1,0 +1,17 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+
+# Test/coverage artifacts
+.coverage
+coverage.xml
+htmlcov/
+
+# OS/editor noise
+.DS_Store
+.vscode/
+.idea/
