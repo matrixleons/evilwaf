@@ -1162,12 +1162,16 @@ class OriginServerIPHunter:
         enrich: bool = True,
         extra_waf_ranges: Optional[list[str]] = None,
         manual_ip: Optional[str] = None,
+        scanner_concurrency: int = 4,
+        scanner_timeout: float = 90.0,
     ):
         self.domain            = domain.lower().strip()
         self._verify           = verify
         self._enrich           = enrich
         self._extra_waf_ranges = extra_waf_ranges or []
         self._manual_ip        = manual_ip
+        self._scanner_concurrency = max(1, scanner_concurrency)
+        self._scanner_timeout = max(5.0, scanner_timeout)
         self._report           = ReconReport(target=self.domain)
         self._verifier         = OriginVerifier(self.domain)
         self._enricher         = IPEnricher()
@@ -1218,11 +1222,17 @@ class OriginServerIPHunter:
         self._report.waf_vendor = vendor
         self._report.waf_names  = names
 
+        sem = asyncio.Semaphore(self._scanner_concurrency)
+
         async def run_scanner(scanner):
             try:
-                results = await scanner.scan()
+                async with sem:
+                    results = await asyncio.wait_for(
+                        scanner.scan(),
+                        timeout=self._scanner_timeout,
+                    )
                 await self._correlator.feed(results, self._report)
-            except Exception:
+            except (asyncio.TimeoutError, Exception):
                 pass
 
         await asyncio.gather(*[run_scanner(s) for s in self._scanners])
