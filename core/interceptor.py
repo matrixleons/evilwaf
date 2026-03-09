@@ -1068,12 +1068,19 @@ class ResponseAdvisor:
 
 
 class Magic:
-    def __init__(self, tcp: Optional[TCPOptionsManipulator] = None, tls: Optional[TLSFingerprinter] = None, tor: Optional[TorRotator] = None):
+    def __init__(
+        self,
+        tcp: Optional[TCPOptionsManipulator] = None,
+        tls: Optional[TLSFingerprinter] = None,
+        tor: Optional[TorRotator] = None,
+        rotate_every: int = 1,
+    ):
         self._tcp = tcp or TCPOptionsManipulator()
         self._tls = tls or TLSFingerprinter()
         self._tor = tor or TorRotator()
         self._lock = threading.Lock()
         self._request_count = 0
+        self._rotate_every = max(1, rotate_every)
 
     def apply(self, technique: str = "") -> Dict[str, Any]:
         with self._lock:
@@ -1085,7 +1092,7 @@ class Magic:
             "tls": {"session": tls_sess, "identifier": tls_id},
             "tor": {},
         }
-        if technique == "ip_rotation" or self._tor.should_rotate(self._request_count):
+        if technique == "ip_rotation" or self._tor.should_rotate(self._request_count, self._rotate_every):
             if self._tor.is_tor_alive():
                 ok, ip = self._tor.rotate_and_verify()
                 result["tor"] = {"active": ok, "ip": ip, "proxies": self._tor.get_proxy_dict()}
@@ -1163,7 +1170,11 @@ class Interceptor:
         self._proxy_rotator = ProxyRotator(proxy_urls=upstream_proxies) if upstream_proxies else None
 
         self.ca = CertificateAuthority()
-        self._handshaker = MITMHandshaker(self.ca, proxy_rotator=self._proxy_rotator)
+        self._handshaker = MITMHandshaker(
+            self.ca,
+            override_ip=self._override_ip,
+            proxy_rotator=self._proxy_rotator,
+        )
         self._forwarder = Forwarder()
 
         self._tor = TorRotator(
@@ -1173,7 +1184,12 @@ class Interceptor:
         )
         self._tcp_manip = TCPOptionsManipulator()
         self._tls_fp = TLSFingerprinter()
-        self._magic = Magic(tcp=self._tcp_manip, tls=self._tls_fp, tor=self._tor)
+        self._magic = Magic(
+            tcp=self._tcp_manip,
+            tls=self._tls_fp,
+            tor=self._tor,
+            rotate_every=tor_rotate_every,
+        )
         self._advisor = ResponseAdvisor(self._magic)
 
         self.intercept_https = intercept_https
@@ -1216,7 +1232,8 @@ class Interceptor:
             req.host = host
             req.port = port
 
-            sock = self._create_upstream_connection(host, port, timeout=30)
+            connect_host = self._override_ip or host
+            sock = self._create_upstream_connection(connect_host, port, timeout=30)
 
             if parsed.scheme == "https":
                 ctx = TLSContextFactory.client_context(alpn=["http/1.1"])
