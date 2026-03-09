@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.git/
+.github/
+.coverage
+coverage.xml
+htmlcov/
+tests/
+media/
