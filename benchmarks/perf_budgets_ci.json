@@ -1,0 +1,5 @@
+{
+  "latency_p95_ms_max": 2500.0,
+  "success_rate_min": 0.8,
+  "rps_min": 1.0
+}
