@@ -20,6 +20,7 @@ from core.interceptor import (
     ProxyRecord,
     create_interceptor,
 )
+from core.proxy_file import load_proxy_file
 from core.waf_detector import WAFDetector
 from chemistry.origin_server_ip import OriginServerIPHunter, ReconReport, OriginResult
 
@@ -46,7 +47,7 @@ def _fmt_duration(seconds: float) -> str:
 def _detect_waf(target_url: str) -> Optional[str]:
     det = WAFDetector()
     try:
-        r = requests.get(target_url, timeout=10, verify=False, allow_redirects=True)
+        r = requests.get(target_url, timeout=10, allow_redirects=True)
         found = det.detect_all(
             response_body=r.text,
             headers=dict(r.headers),
@@ -63,7 +64,7 @@ def _hunt_origin_ip_verbose(target: str) -> Optional[str]:
     domain = parsed.hostname or parsed.netloc
 
     print(f"\n[*] Origin IP Hunter started for: {domain}")
-    print(f"[*] Launching scanners in parallel:\n")
+    print("[*] Launching scanners in parallel:\n")
 
     scanner_names = [
         "dns_history",
@@ -527,7 +528,7 @@ class EvilWAFTUI:
         proxy_p = f" | Proxy: {self.upstream_proxy_count}" if self.upstream_proxy_count else ""
         return urwid.AttrMap(
             urwid.Text(
-                ('header', f" EvilWAF v2.4.1 | {h}{waf_p}{ip_p}{tor_p}{proxy_p}   q=Quit  up/down=browse  f=follow "),
+                ('header', f" EvilWAF v2.4 | {h}{waf_p}{ip_p}{tor_p}{proxy_p}   q=Quit  up/down=browse  f=follow "),
                 align='center',
             ),
             'header',
@@ -738,6 +739,9 @@ class EvilWAFOrchestrator:
         server_ip:        Optional[str] = None,
         target_host:      Optional[str] = None,
         upstream_proxies: Optional[List[str]] = None,
+        record_limit:     int = 20000,
+        record_spool_file: Optional[str] = None,
+        record_spool_max_mb: int = 50,
     ):
         self._enable_tor = enable_tor
         self._running    = False
@@ -752,6 +756,9 @@ class EvilWAFOrchestrator:
             override_ip=server_ip,
             target_host=target_host,
             upstream_proxies=upstream_proxies,
+            record_limit=record_limit,
+            record_spool_path=record_spool_file,
+            record_spool_max_bytes=max(1, record_spool_max_mb) * 1024 * 1024,
         )
 
         self._tor_table  = TorIPTable()
@@ -829,7 +836,7 @@ def signal_handler(signum: int, frame: Any):
 def main():
     parser = argparse.ArgumentParser(
         prog="evilwaf",
-        description="EvilWAF v2.4.1 — Transparent WAF Bypass Proxy",
+        description="EvilWAF v2.4 — Transparent WAF Bypass Proxy",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Flags:\n"
@@ -845,6 +852,9 @@ def main():
             "  --upstream-proxy URL   Upstream proxy (http://, socks5://, socks4://)\n"
             "  --proxy-file FILE      File with proxy URLs for rotation\n"
             "  --no-tui               Headless mode, print traffic to stdout\n"
+            "  --record-limit         In-memory record cap (default: 20000)\n"
+            "  --record-spool-file    Optional JSONL file for evicted records\n"
+            "  --record-spool-max-mb  Rotate/compress spool file after this size (default: 50)\n"
             "\n"
             "API Keys (optional, set as environment variables):\n"
             "  SHODAN_API_KEY         Shodan API key\n"
@@ -873,6 +883,9 @@ def main():
     parser.add_argument("--proxy-file",            type=str, default=None, metavar="FILE",
                         help="File with proxy URLs, one per line, for rotation")
     parser.add_argument("--no-tui",                action="store_true")
+    parser.add_argument("--record-limit",          type=int, default=20000)
+    parser.add_argument("--record-spool-file",     type=str, default=None)
+    parser.add_argument("--record-spool-max-mb",   type=int, default=50)
 
     args = parser.parse_args()
 
@@ -892,11 +905,10 @@ def main():
     if args.upstream_proxy:
         upstream_proxies = [args.upstream_proxy]
     if args.proxy_file:
-        with open(args.proxy_file) as f:
-            file_proxies = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+        file_proxies = load_proxy_file(args.proxy_file)
         upstream_proxies = (upstream_proxies or []) + file_proxies
 
-    print("[*] EvilWAF v2.4.1")
+    print("[*] EvilWAF v2.4")
     print(f"[*] Target : {args.target}")
     print("[*] Detecting WAF...", end="", flush=True)
     waf_name = _detect_waf(args.target)
@@ -928,6 +940,10 @@ def main():
         print(f"[*] Proxy  : {len(upstream_proxies)} upstream proxy(ies)")
 
     print(f"[*] Listen : {args.listen_host}:{args.listen_port}")
+    print(f"[*] Record limit : {max(1000, args.record_limit)}")
+    if args.record_spool_file:
+        print(f"[*] Record spool: {args.record_spool_file}")
+        print(f"[*] Spool rotate: {max(1, args.record_spool_max_mb)} MB")
 
     orchestrator = EvilWAFOrchestrator(
         listen_host=args.listen_host,
@@ -939,6 +955,9 @@ def main():
         server_ip=server_ip,
         target_host=parsed.hostname,
         upstream_proxies=upstream_proxies,
+        record_limit=max(1000, args.record_limit),
+        record_spool_file=args.record_spool_file,
+        record_spool_max_mb=max(1, args.record_spool_max_mb),
     )
 
     orchestrator.start()
