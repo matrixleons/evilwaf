@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.4.2] - 2026-03-10
+
+###  Improvements
+- Bounded concurrency control for 
+  origin IP scanner (faster, stable)
+
+
+###  CI/CD
+- Automated Docker image builds
+- Lightweight syntax + smoke CI checks
+
+###  Documentation  
+- Added CONTRIBUTING.md guidelines
+- Added bug report template
+
+###  Maintenance
+- Added .gitignore for Python artifacts
+- Added .editorconfig for consistency
+---
+
+
+
+
+
 ## [2.4.1] - 2026-03-07
 
 ### Added
