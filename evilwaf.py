@@ -527,7 +527,7 @@ class EvilWAFTUI:
         proxy_p = f" | Proxy: {self.upstream_proxy_count}" if self.upstream_proxy_count else ""
         return urwid.AttrMap(
             urwid.Text(
-                ('header', f" EvilWAF v2.4.1 | {h}{waf_p}{ip_p}{tor_p}{proxy_p}   q=Quit  up/down=browse  f=follow "),
+                ('header', f" EvilWAF v2.4.2 | {h}{waf_p}{ip_p}{tor_p}{proxy_p}   q=Quit  up/down=browse  f=follow "),
                 align='center',
             ),
             'header',
@@ -829,7 +829,7 @@ def signal_handler(signum: int, frame: Any):
 def main():
     parser = argparse.ArgumentParser(
         prog="evilwaf",
-        description="EvilWAF v2.4.1 — Transparent WAF Bypass Proxy",
+        description="EvilWAF v2.4.2 — Transparent WAF Bypass Proxy",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Flags:\n"
@@ -896,7 +896,7 @@ def main():
             file_proxies = [line.strip() for line in f if line.strip() and not line.startswith('#')]
         upstream_proxies = (upstream_proxies or []) + file_proxies
 
-    print("[*] EvilWAF v2.4.1")
+    print("[*] EvilWAF v2.4.2")
     print(f"[*] Target : {args.target}")
     print("[*] Detecting WAF...", end="", flush=True)
     waf_name = _detect_waf(args.target)
