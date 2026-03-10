@@ -5,7 +5,7 @@
 </p>
   
 
-# Evilwaf 2.4.1
+# Evilwaf 2.4.2
 
 
 # EvilWAF - Web Application Firewall Testing and Bypass toolkit 
