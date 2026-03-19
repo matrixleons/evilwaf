@@ -26,6 +26,31 @@ import dns.zone
 
 from core.waf_detector import WAFDetector as WAFSignatureDetector
 
+import ctypes as _ctypes
+import os as _os
+import sys as _sys
+
+def _load_origin_faster():
+    try:
+        import _origin_faster
+        return _origin_faster, True
+    except ImportError:
+        pass
+    _here = _os.path.dirname(_os.path.abspath(__file__))
+    _so   = _os.path.join(_here, "_origin_faster.so")
+    if _os.path.exists(_so):
+        try:
+            _ctypes.CDLL(_so)
+            if _here not in _sys.path:
+                _sys.path.insert(0, _here)
+            import _origin_faster
+            return _origin_faster, True
+        except Exception:
+            pass
+    return None, False
+
+_faster, _FAST_AVAILABLE = _load_origin_faster()
+
 SHODAN_API_KEY         = os.getenv("SHODAN_API_KEY")
 SECURITYTRAILS_API_KEY = os.getenv("SECURITYTRAILS_API_KEY")
 VIRUSTOTAL_API_KEY     = os.getenv("VIRUSTOTAL_API_KEY")
@@ -65,52 +90,52 @@ class ConfidenceLevel(Enum):
 
 
 class WAFVendor(Enum):
-    CLOUDFLARE = "cloudflare"
+    CLOUDFLARE      = "cloudflare"
     CLOUDFLARE_IPV6 = "cloudflare_ipv6"
-    AKAMAI = "akamai"
-    AKAMAI_IPV6 = "akamai_ipv6"
-    FASTLY = "fastly"
-    FASTLY_IPV6 = "fastly_ipv6"
-    SUCURI = "sucuri"
-    INCAPSULA = "incapsula"
-    IMPERVA = "imperva"
-    AWS_WAF = "aws_waf"
-    AWS_CLOUDFRONT = "cloudfront"
-    AZURE_CDN = "azure_cdn"
+    AKAMAI          = "akamai"
+    AKAMAI_IPV6     = "akamai_ipv6"
+    FASTLY          = "fastly"
+    FASTLY_IPV6     = "fastly_ipv6"
+    SUCURI          = "sucuri"
+    INCAPSULA       = "incapsula"
+    IMPERVA         = "imperva"
+    AWS_WAF         = "aws_waf"
+    AWS_CLOUDFRONT  = "cloudfront"
+    AZURE_CDN       = "azure_cdn"
     GOOGLE_CLOUD_CDN = "google_cloud_cdn"
-    ALIBABA = "alibaba"
-    ORACLE_CLOUD = "oracle_cloud"
-    HETZNER = "hetzner"
-    OVH_CDN = "ovh_cdn"
-    STACKPATH = "stackpath"
-    BUNNYCDN = "bunnycdn"
-    KEYCDN = "keycdn"
-    DDOS_GUARD = "ddos_guard"
-    WORDFENCE = "wordfence"
-    SITEGROUND = "siteground"
-    CLOUDWAYS = "cloudways"
-    F5_BIGIP = "f5_bigip"
-    FORTIWEB = "fortiweb"
-    FORTINET = "fortinet"
-    BARRACUDA = "barracuda"
-    CITRIX = "citrix"
-    PALO_ALTO = "palo_alto"
-    RADWARE = "radware"
-    SONICWALL = "sonicwall"
-    WATCHGUARD = "watchguard"
-    COMODO = "comodo" 
-    MODSECURITY = "modsecurity"
-    OPENAPPSEC = "openappsec"
-    NGINX = "nginx"
-    APACHE = "apache"
-    OPENRESTY = "openresty"
-    LITESPEED = "litespeed"
-    OPENLITESPEED = "openlitespeed"
-    VARNISH = "varnish"
-    KUBERNETES = "kubernetes"
-    SHIELD = "shield"
-    LIQUID = "liquid"
-    UNKNOWN = "unknown"
+    ALIBABA         = "alibaba"
+    ORACLE_CLOUD    = "oracle_cloud"
+    HETZNER         = "hetzner"
+    OVH_CDN         = "ovh_cdn"
+    STACKPATH       = "stackpath"
+    BUNNYCDN        = "bunnycdn"
+    KEYCDN          = "keycdn"
+    DDOS_GUARD      = "ddos_guard"
+    WORDFENCE       = "wordfence"
+    SITEGROUND      = "siteground"
+    CLOUDWAYS       = "cloudways"
+    F5_BIGIP        = "f5_bigip"
+    FORTIWEB        = "fortiweb"
+    FORTINET        = "fortinet"
+    BARRACUDA       = "barracuda"
+    CITRIX          = "citrix"
+    PALO_ALTO       = "palo_alto"
+    RADWARE         = "radware"
+    SONICWALL       = "sonicwall"
+    WATCHGUARD      = "watchguard"
+    COMODO          = "comodo"
+    MODSECURITY     = "modsecurity"
+    OPENAPPSEC      = "openappsec"
+    NGINX           = "nginx"
+    APACHE          = "apache"
+    OPENRESTY       = "openresty"
+    LITESPEED       = "litespeed"
+    OPENLITESPEED   = "openlitespeed"
+    VARNISH         = "varnish"
+    KUBERNETES      = "kubernetes"
+    SHIELD          = "shield"
+    LIQUID          = "liquid"
+    UNKNOWN         = "unknown"
 
 
 WAF_IP_RANGES: dict[WAFVendor, list[str]] = {
@@ -123,21 +148,21 @@ _VENDOR_NAME_MAP: dict[str, WAFVendor] = {v.value: v for v in WAFVendor}
 
 @dataclass
 class OriginResult:
-    ip: str
-    source: str
-    confidence: float
-    details: dict            = field(default_factory=dict)
-    timestamp: float         = field(default_factory=time.monotonic)
-    waf_vendor: WAFVendor    = WAFVendor.UNKNOWN
-    verified: bool           = False
-    cert_verified: bool      = False
-    http_verified: bool      = False
-    cross_source_count: int  = 1
-    asn: Optional[str]       = None
-    org: Optional[str]       = None
-    country: Optional[str]   = None
-    ports: list[int]         = field(default_factory=list)
-    hostnames: list[str]     = field(default_factory=list)
+    ip:                str
+    source:            str
+    confidence:        float
+    details:           dict           = field(default_factory=dict)
+    timestamp:         float          = field(default_factory=time.monotonic)
+    waf_vendor:        WAFVendor      = WAFVendor.UNKNOWN
+    verified:          bool           = False
+    cert_verified:     bool           = False
+    http_verified:     bool           = False
+    cross_source_count: int           = 1
+    asn:               Optional[str]  = None
+    org:               Optional[str]  = None
+    country:           Optional[str]  = None
+    ports:             list[int]      = field(default_factory=list)
+    hostnames:         list[str]      = field(default_factory=list)
 
     def __hash__(self) -> int:
         return hash(self.ip)
@@ -148,15 +173,15 @@ class OriginResult:
 
 @dataclass
 class ReconReport:
-    target: str
-    origin_candidates: list[OriginResult] = field(default_factory=list)
-    best_candidate: Optional[OriginResult] = None
-    waf_vendor: WAFVendor                  = WAFVendor.UNKNOWN
-    waf_names: list[str]                   = field(default_factory=list)
-    total_sources_checked: int             = 0
-    duration: float                        = 0.0
-    source_stats: dict                     = field(default_factory=lambda: defaultdict(int))
-    verified_ips: list[str]                = field(default_factory=list)
+    target:               str
+    origin_candidates:    list[OriginResult] = field(default_factory=list)
+    best_candidate:       Optional[OriginResult] = None
+    waf_vendor:           WAFVendor              = WAFVendor.UNKNOWN
+    waf_names:            list[str]              = field(default_factory=list)
+    total_sources_checked: int                   = 0
+    duration:             float                  = 0.0
+    source_stats:         dict                   = field(default_factory=lambda: defaultdict(int))
+    verified_ips:         list[str]              = field(default_factory=list)
 
     def add(self, result: OriginResult) -> None:
         existing = {r.ip: r for r in self.origin_candidates}
@@ -168,12 +193,9 @@ class ReconReport:
             if result.confidence > ex.confidence:
                 ex.confidence = result.confidence
             ex.details.update(result.details)
-            if result.verified:
-                ex.verified = True
-            if result.cert_verified:
-                ex.cert_verified = True
-            if result.http_verified:
-                ex.http_verified = True
+            if result.verified:       ex.verified      = True
+            if result.cert_verified:  ex.cert_verified = True
+            if result.http_verified:  ex.http_verified = True
             if result.asn and not ex.asn:
                 ex.asn = result.asn
             if result.org and not ex.org:
@@ -207,6 +229,21 @@ class ReconReport:
 
 
 def _is_waf_ip(ip: str, extra_ranges: Optional[list[str]] = None) -> tuple[bool, WAFVendor]:
+    if _FAST_AVAILABLE:
+        is_waf, cat_str = _faster.is_waf_ip(ip)
+        vendor = _VENDOR_NAME_MAP.get(cat_str, WAFVendor.UNKNOWN)
+        if is_waf:
+            return True, vendor
+        if extra_ranges:
+            try:
+                addr = ipaddress.ip_address(ip)
+                for r in extra_ranges:
+                    if addr in ipaddress.ip_network(r):
+                        return True, WAFVendor.UNKNOWN
+            except ValueError:
+                pass
+        return False, WAFVendor.UNKNOWN
+
     try:
         addr = ipaddress.ip_address(ip)
         for vendor, ranges in WAF_IP_RANGES.items():
@@ -241,7 +278,7 @@ def _fetch_url(
 ) -> Optional[str]:
     hdrs = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "application/json, text/html, */*",
+        "Accept":     "application/json, text/html, */*",
         "Accept-Language": "en-US,en;q=0.9",
     }
     if headers:
@@ -262,6 +299,47 @@ def _resolve_hostname(hostname: str) -> Optional[str]:
         return socket.gethostbyname(hostname)
     except socket.gaierror:
         return None
+
+
+class StrictIPClassifier:
+    _CF_REVERSE_PATTERNS = re.compile(
+        r"(cloudflare|1\.1\.1\.1|1\.0\.0\.1|cfdata\.net|cf-ipv6\.com)",
+        re.IGNORECASE,
+    )
+    _CF_CERT_ISSUERS = [
+        "cloudflare", "digicert", "lets encrypt",
+    ]
+    _CDN_SERVER_HEADERS = [
+        "cloudflare", "akamai", "fastly", "varnish",
+        "amazon", "azure", "google", "sucuri",
+    ]
+
+    @classmethod
+    def is_definitely_cdn(cls, ip: str, headers: Optional[dict] = None,
+                          cert_issuer: Optional[str] = None,
+                          rdns: Optional[str] = None) -> tuple[bool, str]:
+        is_waf, vendor = _is_waf_ip(ip)
+        if is_waf:
+            return True, vendor.value
+
+        if rdns and cls._CF_REVERSE_PATTERNS.search(rdns):
+            return True, "cloudflare_rdns"
+
+        if headers:
+            h_lower = {k.lower(): v.lower() for k, v in headers.items()}
+            if any(k in h_lower for k in ["cf-ray", "cf-cache-status", "cf-request-id"]):
+                return True, "cloudflare_headers"
+            srv = h_lower.get("server", "")
+            for cdn_srv in cls._CDN_SERVER_HEADERS:
+                if cdn_srv in srv:
+                    return True, f"cdn_server_header:{cdn_srv}"
+
+        if cert_issuer:
+            issuer_lower = cert_issuer.lower()
+            if "cloudflare" in issuer_lower:
+                return True, "cloudflare_cert"
+
+        return False, ""
 
 
 class IPEnricher:
@@ -297,7 +375,8 @@ class IPEnricher:
 
 class OriginVerifier:
     def __init__(self, domain: str):
-        self.domain = domain
+        self.domain     = domain
+        self._classifier = StrictIPClassifier()
 
     def verify_cert(self, ip: str) -> bool:
         try:
@@ -309,6 +388,12 @@ class OriginVerifier:
                 server_hostname=self.domain,
             ) as sock:
                 cert = sock.getpeercert()
+                issuer_str = str(cert.get("issuer", ""))
+                is_cdn, reason = self._classifier.is_definitely_cdn(
+                    ip, cert_issuer=issuer_str
+                )
+                if is_cdn:
+                    return False
                 for san_type, san_value in cert.get("subjectAltName", []):
                     if san_type == "DNS":
                         clean = san_value.lstrip("*.")
@@ -319,6 +404,14 @@ class OriginVerifier:
         return False
 
     def verify_http(self, ip: str) -> bool:
+        if _FAST_AVAILABLE:
+            results = _faster.http_probe_batch([ip], self.domain, [80, 443, 8080, 8443])
+            for r in results:
+                _ip, port, reachable, status, is_cf, is_cdn, hints, server, cat, latency = r
+                if not is_cf and not is_cdn and 0 < status < 500:
+                    return True
+            return False
+
         for port, use_ssl in [(443, True), (80, False)]:
             try:
                 if use_ssl:
@@ -347,6 +440,10 @@ class OriginVerifier:
                         break
                 conn.close()
                 if resp:
+                    resp_lower = resp.decode(errors="ignore").lower()
+                    cf_indicators = ["cf-ray", "cf-cache-status", "server: cloudflare"]
+                    if any(ind in resp_lower for ind in cf_indicators):
+                        continue
                     status_line = resp.split(b"\r\n")[0].decode(errors="ignore")
                     if re.match(r"HTTP/\d\.\d \d{3}", status_line):
                         code = int(status_line.split()[1])
@@ -357,6 +454,20 @@ class OriginVerifier:
         return False
 
     def verify(self, ip: str) -> Tuple[bool, bool, bool]:
+        is_cdn, reason = StrictIPClassifier.is_definitely_cdn(ip)
+        if is_cdn:
+            return False, False, False
+
+        if _FAST_AVAILABLE:
+            tls_results = _faster.tls_probe_batch([ip], self.domain, 443)
+            for r in tls_results:
+                _ip, port, reachable, cert_match, sans, issuer, is_cf, cat, latency = r
+                if is_cf:
+                    return False, False, False
+                cert_ok = cert_match and not is_cf
+                http_ok = self.verify_http(ip)
+                return (cert_ok or http_ok), cert_ok, http_ok
+
         cert_ok = self.verify_cert(ip)
         http_ok = self.verify_http(ip)
         return (cert_ok or http_ok), cert_ok, http_ok
@@ -399,8 +510,8 @@ class _WAFVendorResolver:
 
 
 class DNSHistoryScanner:
-    _ST_API  = "https://api.securitytrails.com/v1/history/{domain}/dns/a"
-    _VT_API  = "https://www.virustotal.com/api/v3/domains/{domain}/resolutions"
+    _ST_API = "https://api.securitytrails.com/v1/history/{domain}/dns/a"
+    _VT_API = "https://www.virustotal.com/api/v3/domains/{domain}/resolutions"
 
     def __init__(self, domain: str):
         self.domain = domain
@@ -413,31 +524,20 @@ class DNSHistoryScanner:
         with ThreadPoolExecutor(max_workers=max(1, len(sources) + 2)) as ex:
             futs = [loop.run_in_executor(ex, _fetch_url, u.format(domain=self.domain))
                     for u in sources]
-
             if SECURITYTRAILS_API_KEY:
-                st_fut = loop.run_in_executor(
-                    ex,
-                    _fetch_url,
+                futs.append(loop.run_in_executor(
+                    ex, _fetch_url,
                     self._ST_API.format(domain=self.domain),
-                    10,
-                    {"APIKEY": SECURITYTRAILS_API_KEY},
-                    None,
-                )
-                futs.append(st_fut)
+                    10, {"APIKEY": SECURITYTRAILS_API_KEY}, None,
+                ))
                 sources.append("securitytrails_api")
-
             if VIRUSTOTAL_API_KEY:
-                vt_fut = loop.run_in_executor(
-                    ex,
-                    _fetch_url,
+                futs.append(loop.run_in_executor(
+                    ex, _fetch_url,
                     self._VT_API.format(domain=self.domain),
-                    10,
-                    {"x-apikey": VIRUSTOTAL_API_KEY},
-                    None,
-                )
-                futs.append(vt_fut)
+                    10, {"x-apikey": VIRUSTOTAL_API_KEY}, None,
+                ))
                 sources.append("virustotal_api")
-
             responses = await asyncio.gather(*futs, return_exceptions=True)
 
         for i, resp in enumerate(responses):
@@ -445,16 +545,13 @@ class DNSHistoryScanner:
                 continue
             src_label = (
                 sources[i].split("/")[2]
-                if i < len(_DNS_HISTORY_SOURCES)
-                else sources[i]
+                if i < len(_DNS_HISTORY_SOURCES) else sources[i]
             )
-            ips = self._parse(resp, sources[i] if i < len(sources) else "")
-            for ip in ips:
+            for ip in self._parse(resp, sources[i] if i < len(sources) else ""):
                 is_waf, _ = _is_waf_ip(ip)
                 if not is_waf:
                     results.append(OriginResult(
-                        ip=ip,
-                        source=f"dns_history:{src_label}",
+                        ip=ip, source=f"dns_history:{src_label}",
                         confidence=ConfidenceLevel.MEDIUM.value,
                         details={"method": "dns_history", "source": src_label},
                     ))
@@ -464,12 +561,8 @@ class DNSHistoryScanner:
         ips: list[str] = []
         if "securitytrails" in source or "virustotal" in source:
             try:
-                data = json.loads(text)
-                records = (
-                    data.get("records", []) or
-                    data.get("data", []) or
-                    []
-                )
+                data    = json.loads(text)
+                records = data.get("records", []) or data.get("data", []) or []
                 for rec in records:
                     for val in rec.get("values", [rec]):
                         ip = val.get("ip") or val.get("address") or ""
@@ -500,26 +593,10 @@ class SSLCertificateScanner:
                         if self.domain in n:
                             subs.append(n)
         except Exception:
-            subs.extend(re.findall(rf"([a-zA-Z0-9_\-\.]+\.{re.escape(self.domain)})", response))
+            subs.extend(re.findall(
+                rf"([a-zA-Z0-9_\-\.]+\.{re.escape(self.domain)})", response
+            ))
         return list(set(subs))
-
-    def _probe_cert_san(self, ip: str) -> bool:
-        try:
-            ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode    = ssl.CERT_NONE
-            with ctx.wrap_socket(
-                socket.create_connection((ip, 443), timeout=3),
-                server_hostname=self.domain,
-            ) as s:
-                cert = s.getpeercert()
-                for _, san_val in cert.get("subjectAltName", []):
-                    clean = san_val.lstrip("*.")
-                    if self.domain.endswith(clean) or self.domain == clean:
-                        return True
-        except Exception:
-            pass
-        return False
 
     async def scan(self) -> list[OriginResult]:
         loop    = asyncio.get_event_loop()
@@ -538,36 +615,35 @@ class SSLCertificateScanner:
                 subs.extend(self._parse_ct(resp))
         subs = list(set(subs))
 
-        with ThreadPoolExecutor(max_workers=30) as ex:
-            resolved = await asyncio.gather(
-                *[loop.run_in_executor(ex, _resolve_hostname, s) for s in subs],
-                return_exceptions=True,
-            )
+        if _FAST_AVAILABLE:
+            resolved_batch = _faster.parallel_dns_resolve(subs, True)
+            candidate_ips  = [ip for _, ips in resolved_batch for ip in ips]
+        else:
+            with ThreadPoolExecutor(max_workers=30) as ex:
+                resolved = await asyncio.gather(
+                    *[loop.run_in_executor(ex, _resolve_hostname, s) for s in subs],
+                    return_exceptions=True,
+                )
+            candidate_ips = [ip for ip in resolved
+                             if isinstance(ip, str) and ip and not _is_waf_ip(ip)[0]]
 
-        candidate_ips: list[str] = []
-        for ip in resolved:
-            if isinstance(ip, str) and ip:
-                is_waf, _ = _is_waf_ip(ip)
-                if not is_waf:
-                    candidate_ips.append(ip)
-
-        with ThreadPoolExecutor(max_workers=20) as ex:
-            cert_checks = await asyncio.gather(
-                *[loop.run_in_executor(ex, self._probe_cert_san, ip)
-                  for ip in candidate_ips],
-                return_exceptions=True,
-            )
-
-        for i, ip in enumerate(candidate_ips):
-            cert_ok = isinstance(cert_checks[i], bool) and cert_checks[i]
-            conf    = ConfidenceLevel.HIGH.value if cert_ok else ConfidenceLevel.HIGH.value - 0.05
-            results.append(OriginResult(
-                ip=ip,
-                source="ssl_certificate:ct_logs",
-                confidence=conf,
-                cert_verified=cert_ok,
-                details={"method": "ct_log_resolution", "cert_san_verified": cert_ok},
-            ))
+        if _FAST_AVAILABLE and candidate_ips:
+            tls_results = _faster.tls_probe_batch(candidate_ips, self.domain, 443)
+            for ip, port, reachable, cert_match, sans, issuer, is_cf, cat, latency in tls_results:
+                if not is_cf and cert_match:
+                    results.append(OriginResult(
+                        ip=ip, source="ssl_certificate:ct_logs",
+                        confidence=ConfidenceLevel.HIGH.value,
+                        cert_verified=True,
+                        details={"method": "ct_log_rust_tls", "cert_san_verified": True},
+                    ))
+        else:
+            for ip in candidate_ips:
+                results.append(OriginResult(
+                    ip=ip, source="ssl_certificate:ct_logs",
+                    confidence=ConfidenceLevel.HIGH.value - 0.05,
+                    details={"method": "ct_log_resolution"},
+                ))
         return results
 
 
@@ -582,8 +658,7 @@ class SubdomainEnumerator:
             is_waf, _ = _is_waf_ip(ip)
             if not is_waf and not _is_private_ip(ip):
                 return OriginResult(
-                    ip=ip,
-                    source=f"subdomain_enum:{fqdn}",
+                    ip=ip, source=f"subdomain_enum:{fqdn}",
                     confidence=ConfidenceLevel.MEDIUM.value + 0.1,
                     details={"subdomain": fqdn, "method": "bruteforce"},
                 )
@@ -612,7 +687,9 @@ class SubdomainEnumerator:
                         if self.domain in hostname:
                             subs.append(hostname.replace(f".{self.domain}", ""))
         except Exception:
-            subs.extend(re.findall(rf"([a-zA-Z0-9_\-]+)\.{re.escape(self.domain)}", response))
+            subs.extend(re.findall(
+                rf"([a-zA-Z0-9_\-]+)\.{re.escape(self.domain)}", response
+            ))
         return subs
 
     async def _passive_enum(self) -> list[str]:
@@ -633,6 +710,21 @@ class SubdomainEnumerator:
         passive  = await self._passive_enum()
         all_subs = list(set(_SUBDOMAIN_WORDLIST + passive))
         loop     = asyncio.get_event_loop()
+
+        if _FAST_AVAILABLE:
+            fqdns  = [f"{s}.{self.domain}" if not s.endswith(self.domain) else s
+                      for s in all_subs]
+            batch  = _faster.parallel_dns_resolve(fqdns, True)
+            results = []
+            for fqdn, ips in batch:
+                for ip in ips:
+                    results.append(OriginResult(
+                        ip=ip, source=f"subdomain_enum:{fqdn}",
+                        confidence=ConfidenceLevel.MEDIUM.value + 0.1,
+                        details={"subdomain": fqdn, "method": "bruteforce_rust"},
+                    ))
+            return results
+
         with ThreadPoolExecutor(max_workers=100) as ex:
             resolved = await asyncio.gather(
                 *[loop.run_in_executor(ex, self._resolve, s) for s in all_subs],
@@ -679,10 +771,14 @@ class DNSMisconfigurationScanner:
     def _check_zone_transfer(self) -> list[str]:
         ips: list[str] = []
         try:
-            for ns in self.resolver.resolve(self.domain, "NS"):
+            nameservers = [str(ns.target).rstrip(".")
+                           for ns in self.resolver.resolve(self.domain, "NS")]
+            if _RUST_AVAILABLE:
+                return _faster.axfr_attempt(self.domain, nameservers)
+            for ns in nameservers:
                 try:
                     zone = dns.zone.from_xfr(
-                        dns.query.xfr(str(ns.target), self.domain, timeout=5)
+                        dns.query.xfr(ns, self.domain, timeout=5)
                     )
                     for _, node in zone.nodes.items():
                         for rdataset in node.rdatasets:
@@ -837,8 +933,7 @@ class GitHubLeakScanner:
                     is_waf, _ = _is_waf_ip(ip)
                     if not addr.is_private and not is_waf:
                         results.append(OriginResult(
-                            ip=ip,
-                            source="github_leak:code_search",
+                            ip=ip, source="github_leak:code_search",
                             confidence=ConfidenceLevel.HIGH.value - 0.08,
                             details={"method": "code_search",
                                      "source_url": _CODE_SEARCH_SOURCES[i]},
@@ -854,23 +949,50 @@ class HTTPHeaderLeakScanner:
 
     def _probe_path(self, path: str) -> list[str]:
         ips: list[str] = []
-        try:
-            conn = http.client.HTTPSConnection(self.domain, timeout=5)
-            conn.request("GET", path, headers={"Host": self.domain, "User-Agent": "Mozilla/5.0"})
-            resp = conn.getresponse()
-            for hdr in _HTTP_LEAK_HEADERS:
-                val = resp.getheader(hdr, "")
-                if val:
-                    ips.extend(_extract_ips(val))
-                    for h in re.findall(r"([a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,})", val):
-                        try:
-                            resolved = socket.gethostbyname(h)
-                            if not _is_private_ip(resolved):
-                                ips.append(resolved)
-                        except socket.gaierror:
-                            pass
-        except Exception:
-            pass
+        for port, use_ssl in [(443, True), (80, False)]:
+            try:
+                if use_ssl:
+                    ctx = ssl.create_default_context()
+                    ctx.check_hostname = False
+                    ctx.verify_mode    = ssl.CERT_NONE
+                    raw  = socket.create_connection((self.domain, port), timeout=5)
+                    conn = ssl.wrap_socket(raw, server_hostname=self.domain)
+                else:
+                    conn = socket.create_connection((self.domain, port), timeout=5)
+
+                req = (
+                    f"GET {path} HTTP/1.1\r\n"
+                    f"Host: {self.domain}\r\n"
+                    f"User-Agent: Mozilla/5.0\r\n"
+                    f"Connection: close\r\n\r\n"
+                )
+                conn.sendall(req.encode())
+                resp = b""
+                while True:
+                    chunk = conn.recv(4096)
+                    if not chunk:
+                        break
+                    resp += chunk
+                    if len(resp) > 32768:
+                        break
+                conn.close()
+                resp_text = resp.decode(errors="ignore")
+                for hdr in _HTTP_LEAK_HEADERS:
+                    match = re.search(
+                        rf"(?i){re.escape(hdr)}:\s*([^\r\n]+)", resp_text
+                    )
+                    if match:
+                        val = match.group(1).strip()
+                        ips.extend(_extract_ips(val))
+                        for h in re.findall(r"([a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,})", val):
+                            try:
+                                resolved = socket.gethostbyname(h)
+                                if not _is_private_ip(resolved):
+                                    ips.append(resolved)
+                            except socket.gaierror:
+                                pass
+            except Exception:
+                continue
         return list(set(ips))
 
     async def scan(self) -> list[OriginResult]:
@@ -897,8 +1019,8 @@ class HTTPHeaderLeakScanner:
 
 
 class FaviconHashScanner:
-    _SHODAN_FREE  = "https://www.shodan.io/search?query=http.favicon.hash:{hash}"
-    _SHODAN_API   = "https://api.shodan.io/shodan/host/search?key={key}&query=http.favicon.hash:{hash}"
+    _SHODAN_FREE = "https://www.shodan.io/search?query=http.favicon.hash:{hash}"
+    _SHODAN_API  = "https://api.shodan.io/shodan/host/search?key={key}&query=http.favicon.hash:{hash}"
     _FAVICON_PATHS = ["/favicon.ico", "/favicon.png", "/apple-touch-icon.png"]
 
     def __init__(self, domain: str):
@@ -918,15 +1040,15 @@ class FaviconHashScanner:
     @staticmethod
     def _mmh3_hash(data: bytes) -> int:
         h, length = 0, len(data)
-        nblocks = length // 4
+        nblocks   = length // 4
         for block in range(nblocks):
             k = struct.unpack_from("<I", data, block * 4)[0]
             k = ((k * 0xCC9E2D51) & 0xFFFFFFFF)
             k = (((k << 15) | (k >> 17)) & 0xFFFFFFFF)
             k = ((k * 0x1B873593) & 0xFFFFFFFF)
             h ^= k
-            h = (((h << 13) | (h >> 19)) & 0xFFFFFFFF)
-            h = ((h * 5 + 0xE6546B64) & 0xFFFFFFFF)
+            h  = (((h << 13) | (h >> 19)) & 0xFFFFFFFF)
+            h  = ((h * 5 + 0xE6546B64) & 0xFFFFFFFF)
         tail_idx = nblocks * 4
         k, tail  = 0, length & 3
         if tail >= 3: k ^= data[tail_idx + 2] << 16
@@ -975,8 +1097,7 @@ class FaviconHashScanner:
                 is_waf, _ = _is_waf_ip(ip)
                 if not is_waf:
                     conf = (ConfidenceLevel.HIGH.value + 0.1
-                            if SHODAN_API_KEY
-                            else ConfidenceLevel.HIGH.value + 0.05)
+                            if SHODAN_API_KEY else ConfidenceLevel.HIGH.value + 0.05)
                     results.append(OriginResult(
                         ip=ip,
                         source="favicon_hash:shodan_api" if SHODAN_API_KEY else "favicon_hash:shodan",
@@ -985,6 +1106,129 @@ class FaviconHashScanner:
                                  "favicon_path": self._FAVICON_PATHS[i],
                                  "api_used": bool(SHODAN_API_KEY)},
                     ))
+        return results
+
+
+class URLScanScanner:
+    _API = "https://urlscan.io/api/v1/search/?q=domain:{domain}&size=100"
+
+    def __init__(self, domain: str):
+        self.domain = domain
+
+    async def scan(self) -> list[OriginResult]:
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(
+            None, _fetch_url, self._API.format(domain=self.domain), 12
+        )
+        if not resp:
+            return []
+        results: list[OriginResult] = []
+        try:
+            data = json.loads(resp)
+            for entry in data.get("results", []):
+                page = entry.get("page", {})
+                ip   = page.get("ip", "")
+                if not ip:
+                    continue
+                is_waf, _ = _is_waf_ip(ip)
+                if is_waf or _is_private_ip(ip):
+                    continue
+                results.append(OriginResult(
+                    ip=ip, source="urlscan:page_ip",
+                    confidence=ConfidenceLevel.MEDIUM.value + 0.15,
+                    details={"method": "urlscan", "url": page.get("url", "")},
+                ))
+        except Exception:
+            pass
+        return results
+
+
+class WaybackScanner:
+    _CDX = (
+        "https://web.archive.org/cdx/search/cdx"
+        "?url={domain}&output=json&fl=timestamp,original,statuscode,mimetype"
+        "&filter=statuscode:200&limit=50&collapse=urlkey"
+    )
+
+    def __init__(self, domain: str):
+        self.domain = domain
+
+    def _probe_archived_headers(self, url: str) -> list[str]:
+        wb_url = f"https://web.archive.org/web/if_/{url}"
+        resp   = _fetch_url(wb_url, timeout=8)
+        if not resp:
+            return []
+        ips: list[str] = []
+        for hdr in _HTTP_LEAK_HEADERS:
+            m = re.search(rf"(?i){re.escape(hdr)}:\s*([^\r\n]+)", resp)
+            if m:
+                ips.extend(_extract_ips(m.group(1)))
+        return ips
+
+    async def scan(self) -> list[OriginResult]:
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(
+            None, _fetch_url, self._CDX.format(domain=self.domain), 12
+        )
+        if not resp:
+            return []
+        results: list[OriginResult] = []
+        try:
+            entries = json.loads(resp)
+            urls    = [e[1] for e in entries[1:] if len(e) > 1][:20]
+            with ThreadPoolExecutor(max_workers=10) as ex:
+                all_ips = await asyncio.gather(
+                    *[loop.run_in_executor(ex, self._probe_archived_headers, u) for u in urls],
+                    return_exceptions=True,
+                )
+            for ip_list in all_ips:
+                if not isinstance(ip_list, list):
+                    continue
+                for ip in ip_list:
+                    is_waf, _ = _is_waf_ip(ip)
+                    if not is_waf:
+                        results.append(OriginResult(
+                            ip=ip, source="wayback:archived_headers",
+                            confidence=ConfidenceLevel.MEDIUM.value + 0.1,
+                            details={"method": "wayback_header_leak"},
+                        ))
+        except Exception:
+            pass
+        return results
+
+
+class GreyNoiseScanner:
+    _API = "https://api.greynoise.io/v3/community/{ip}"
+
+    def __init__(self, domain: str):
+        self.domain = domain
+
+    async def scan(self) -> list[OriginResult]:
+        loop = asyncio.get_event_loop()
+        try:
+            ip = await loop.run_in_executor(None, socket.gethostbyname, self.domain)
+        except Exception:
+            return []
+
+        is_waf, _ = _is_waf_ip(ip)
+        if is_waf:
+            return []
+
+        resp = await loop.run_in_executor(None, _fetch_url, self._API.format(ip=ip), 8)
+        if not resp:
+            return []
+
+        results: list[OriginResult] = []
+        try:
+            data = json.loads(resp)
+            if data.get("noise") is False and data.get("riot") is False:
+                results.append(OriginResult(
+                    ip=ip, source="greynoise:community",
+                    confidence=ConfidenceLevel.MEDIUM.value + 0.05,
+                    details={"method": "greynoise", "classification": data.get("classification")},
+                ))
+        except Exception:
+            pass
         return results
 
 
@@ -1020,8 +1264,7 @@ class CensysScanner:
                 if not is_waf and not _is_private_ip(ip):
                     names = hit.get("dns", {}).get("reverse_dns", {}).get("names", [])
                     results.append(OriginResult(
-                        ip=ip,
-                        source="censys:api",
+                        ip=ip, source="censys:api",
                         confidence=ConfidenceLevel.HIGH.value + 0.05,
                         details={"method": "censys_api", "hostnames": names},
                         hostnames=names,
@@ -1057,22 +1300,6 @@ class ASNRangeScanner:
                 pass
         return []
 
-    def _scan_prefix(self, prefix: str) -> list[str]:
-        ips: list[str] = []
-        try:
-            net = ipaddress.ip_network(prefix, strict=False)
-            if net.num_addresses > 65536:
-                return ips
-            for addr in net.hosts():
-                try:
-                    socket.create_connection((str(addr), 443), timeout=1).close()
-                    ips.append(str(addr))
-                except Exception:
-                    pass
-        except Exception:
-            pass
-        return ips
-
     async def scan(self) -> list[OriginResult]:
         loop     = asyncio.get_event_loop()
         results: list[OriginResult] = []
@@ -1080,24 +1307,52 @@ class ASNRangeScanner:
         if not asn:
             return results
         prefixes = await loop.run_in_executor(None, self._get_asn_prefixes, asn)
-        small    = [p for p in prefixes if "/" in p and int(p.split("/")[1]) >= 24]
-        with ThreadPoolExecutor(max_workers=10) as ex:
-            all_ips = await asyncio.gather(
-                *[loop.run_in_executor(ex, self._scan_prefix, p) for p in small[:20]],
-                return_exceptions=True,
-            )
-        for ip_list in all_ips:
-            if not isinstance(ip_list, list):
-                continue
-            for ip in ip_list:
-                is_waf, _ = _is_waf_ip(ip)
-                if not is_waf:
-                    results.append(OriginResult(
-                        ip=ip,
-                        source=f"asn_range:{asn}",
-                        confidence=ConfidenceLevel.MEDIUM.value,
-                        details={"method": "asn_prefix_scan", "asn": asn},
-                    ))
+        small    = [p for p in prefixes if "/" in p and int(p.split("/")[1]) >= 24][:20]
+
+        if _FAST_AVAILABLE and small:
+            all_ips: list[str] = []
+            for prefix in small:
+                try:
+                    scan_results = _faster.parallel_tcp_scan(
+                        [str(h) for h in ipaddress.ip_network(prefix, strict=False).hosts()],
+                        [80, 443],
+                        1200,
+                    )
+                    all_ips.extend(ip for ip, _port, _ms in scan_results)
+                except Exception:
+                    pass
+        else:
+            def _scan_prefix(prefix: str) -> list[str]:
+                ips: list[str] = []
+                try:
+                    net = ipaddress.ip_network(prefix, strict=False)
+                    if net.num_addresses > 65536:
+                        return ips
+                    for addr in net.hosts():
+                        try:
+                            socket.create_connection((str(addr), 443), timeout=1).close()
+                            ips.append(str(addr))
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+                return ips
+
+            with ThreadPoolExecutor(max_workers=10) as ex:
+                all_results = await asyncio.gather(
+                    *[loop.run_in_executor(ex, _scan_prefix, p) for p in small],
+                    return_exceptions=True,
+                )
+            all_ips = [ip for r in all_results if isinstance(r, list) for ip in r]
+
+        for ip in set(all_ips):
+            is_waf, _ = _is_waf_ip(ip)
+            if not is_waf:
+                results.append(OriginResult(
+                    ip=ip, source=f"asn_range:{asn}",
+                    confidence=ConfidenceLevel.MEDIUM.value,
+                    details={"method": "asn_prefix_scan", "asn": asn},
+                ))
         return results
 
 
@@ -1105,7 +1360,7 @@ class CrossSourceCorrelator:
     def __init__(self, verifier: OriginVerifier, min_sources: int = 2):
         self._verifier    = verifier
         self._min_sources = min_sources
-        self._seen: Dict[str, int]  = defaultdict(int)
+        self._seen: Dict[str, int] = defaultdict(int)
         self._lock = asyncio.Lock()
 
     async def feed(self, results: list[OriginResult], report: ReconReport) -> list[OriginResult]:
@@ -1114,7 +1369,6 @@ class CrossSourceCorrelator:
             for r in results:
                 self._seen[r.ip] += 1
                 report.add(r)
-
             for ip, count in self._seen.items():
                 if count >= self._min_sources:
                     candidate = next(
@@ -1142,13 +1396,9 @@ class CrossSourceCorrelator:
                     c.cert_verified = cert_ok
                     c.http_verified = http_ok
                     if ok:
-                        bonus = 0.0
-                        if cert_ok:
-                            bonus += 0.15
-                        if http_ok:
-                            bonus += 0.05
-                        cross_bonus     = min(self._seen[c.ip] * 0.05, 0.20)
-                        c.confidence    = min(c.confidence + bonus + cross_bonus, 1.0)
+                        bonus       = (0.15 if cert_ok else 0.0) + (0.05 if http_ok else 0.0)
+                        cross_bonus = min(self._seen[c.ip] * 0.05, 0.20)
+                        c.confidence = min(c.confidence + bonus + cross_bonus, 1.0)
                     report._update_best()
 
         return newly_verified
@@ -1162,21 +1412,21 @@ class OriginServerIPHunter:
         enrich: bool = True,
         extra_waf_ranges: Optional[list[str]] = None,
         manual_ip: Optional[str] = None,
-        scanner_concurrency: int = 4,
+        scanner_concurrency: int = 10,
         scanner_timeout: float = 90.0,
     ):
-        self.domain            = domain.lower().strip()
-        self._verify           = verify
-        self._enrich           = enrich
-        self._extra_waf_ranges = extra_waf_ranges or []
-        self._manual_ip        = manual_ip
+        self.domain               = domain.lower().strip()
+        self._verify              = verify
+        self._enrich              = enrich
+        self._extra_waf_ranges    = extra_waf_ranges or []
+        self._manual_ip           = manual_ip
         self._scanner_concurrency = max(1, scanner_concurrency)
-        self._scanner_timeout = max(5.0, scanner_timeout)
-        self._report           = ReconReport(target=self.domain)
-        self._verifier         = OriginVerifier(self.domain)
-        self._enricher         = IPEnricher()
-        self._waf_resolver     = _WAFVendorResolver(self.domain)
-        self._correlator       = CrossSourceCorrelator(self._verifier, min_sources=2)
+        self._scanner_timeout     = max(5.0, scanner_timeout)
+        self._report              = ReconReport(target=self.domain)
+        self._verifier            = OriginVerifier(self.domain)
+        self._enricher            = IPEnricher()
+        self._waf_resolver        = _WAFVendorResolver(self.domain)
+        self._correlator          = CrossSourceCorrelator(self._verifier, min_sources=2)
         self._scanners = [
             DNSHistoryScanner(self.domain),
             SSLCertificateScanner(self.domain),
@@ -1188,6 +1438,9 @@ class OriginServerIPHunter:
             FaviconHashScanner(self.domain),
             ASNRangeScanner(self.domain),
             CensysScanner(self.domain),
+            URLScanScanner(self.domain),
+            WaybackScanner(self.domain),
+            GreyNoiseScanner(self.domain),
         ]
 
     async def hunt(self) -> ReconReport:
@@ -1196,12 +1449,12 @@ class OriginServerIPHunter:
 
         if self._manual_ip:
             result = OriginResult(
-                ip=self._manual_ip,
-                source="manual:--server-ip",
+                ip=self._manual_ip, source="manual:--server-ip",
                 confidence=ConfidenceLevel.CRITICAL.value,
                 details={"method": "manual"},
             )
-            if self._verify:
+            is_cdn, reason = StrictIPClassifier.is_definitely_cdn(self._manual_ip)
+            if not is_cdn and self._verify:
                 ok, cert_ok, http_ok = await loop.run_in_executor(
                     None, self._verifier.verify, self._manual_ip
                 )
@@ -1228,8 +1481,7 @@ class OriginServerIPHunter:
             try:
                 async with sem:
                     results = await asyncio.wait_for(
-                        scanner.scan(),
-                        timeout=self._scanner_timeout,
+                        scanner.scan(), timeout=self._scanner_timeout
                     )
                 await self._correlator.feed(results, self._report)
             except (asyncio.TimeoutError, Exception):
@@ -1238,38 +1490,53 @@ class OriginServerIPHunter:
         await asyncio.gather(*[run_scanner(s) for s in self._scanners])
 
         candidates = self._report.origin_candidates
-
         if self._verify and candidates:
             unverified = [c for c in candidates if not c.verified]
             if unverified:
-                with ThreadPoolExecutor(max_workers=20) as ex:
-                    verify_results = await asyncio.gather(
-                        *[loop.run_in_executor(ex, self._verifier.verify, c.ip)
-                          for c in unverified],
-                        return_exceptions=True,
-                    )
-                for i, vr in enumerate(verify_results):
-                    if not isinstance(vr, tuple):
-                        continue
-                    ok, cert_ok, http_ok = vr
-                    unverified[i].verified      = ok
-                    unverified[i].cert_verified = cert_ok
-                    unverified[i].http_verified = http_ok
-                    if ok:
-                        bonus = 0.0
-                        if cert_ok:
-                            bonus += 0.15
-                        if http_ok:
-                            bonus += 0.05
-                        unverified[i].confidence = min(
-                            unverified[i].confidence + bonus, 1.0
+                if _FAST_AVAILABLE:
+                    ips_to_verify = [c.ip for c in unverified]
+                    tls_batch     = _faster.tls_probe_batch(ips_to_verify, self.domain, 443)
+                    tls_map       = {r[0]: r for r in tls_batch}
+                    http_batch    = _faster.http_probe_batch(ips_to_verify, self.domain)
+                    http_map      = {r[0]: r for r in http_batch}
+                    for c in unverified:
+                        tls_r  = tls_map.get(c.ip)
+                        http_r = http_map.get(c.ip)
+                        is_cdn, _ = StrictIPClassifier.is_definitely_cdn(c.ip)
+                        if is_cdn:
+                            continue
+                        cert_ok = bool(tls_r and tls_r[3] and not tls_r[6])
+                        http_ok = bool(http_r and not http_r[4] and 0 < http_r[3] < 500)
+                        c.verified      = cert_ok or http_ok
+                        c.cert_verified = cert_ok
+                        c.http_verified = http_ok
+                        if c.verified:
+                            bonus = (0.15 if cert_ok else 0.0) + (0.05 if http_ok else 0.0)
+                            c.confidence = min(c.confidence + bonus, 1.0)
+                else:
+                    with ThreadPoolExecutor(max_workers=20) as ex:
+                        verify_results = await asyncio.gather(
+                            *[loop.run_in_executor(ex, self._verifier.verify, c.ip)
+                              for c in unverified],
+                            return_exceptions=True,
                         )
+                    for i, vr in enumerate(verify_results):
+                        if not isinstance(vr, tuple):
+                            continue
+                        ok, cert_ok, http_ok        = vr
+                        unverified[i].verified      = ok
+                        unverified[i].cert_verified = cert_ok
+                        unverified[i].http_verified = http_ok
+                        if ok:
+                            bonus = (0.15 if cert_ok else 0.0) + (0.05 if http_ok else 0.0)
+                            unverified[i].confidence = min(
+                                unverified[i].confidence + bonus, 1.0
+                            )
 
         if self._enrich and candidates:
             with ThreadPoolExecutor(max_workers=10) as ex:
                 await asyncio.gather(
-                    *[loop.run_in_executor(ex, self._enricher.enrich, c)
-                      for c in candidates],
+                    *[loop.run_in_executor(ex, self._enricher.enrich, c) for c in candidates],
                     return_exceptions=True,
                 )
 

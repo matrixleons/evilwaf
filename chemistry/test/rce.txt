@@ -1,0 +1,35 @@
+
+; ls -la
+| ls -la
+& ls -la
+; cat /etc/passwd
+| cat /etc/passwd
+; id
+| id
+& id
+; whoami
+$(whoami)
+`whoami`
+; ping -c 1 127.0.0.1
+; uname -a
+| uname -a
+; env
+%3B+id
+%7C+id
+%26+id
+$(id)
+`id`
+;{id}
+&&id
+||id
+\nid
+\rid
+%0aid
+%0did
+$((6*6))
+${6*6}
+$env:USERNAME
+;Get-Process
+| Get-ChildItem
+; dir
+& type C:\Windows\System32\drivers\etc\hosts
