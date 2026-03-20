@@ -1,8 +1,4 @@
-<p align="center">
-  <img alt="Evilwaf Logo"
-  src="https://raw.githubusercontent.com/matrixleons/evilwaf/main/media/evilwaf.png"
-  style="width:100%;max-width:800px;" />
-</p>
+
 
 <p align="center">
   <a href="https://github.com/matrixleons/evilwaf/stargazers">
