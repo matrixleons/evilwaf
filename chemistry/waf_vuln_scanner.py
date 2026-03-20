@@ -1,5 +1,3 @@
-
-
 from __future__ import annotations
 
 import hashlib
@@ -8,7 +6,6 @@ import os
 import re
 import socket
 import ssl
-import sys
 import threading
 import time
 import urllib.parse
@@ -23,20 +20,17 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
-
 try:
     import _fast_scanner as _fsc
     _FAST = True
 except ImportError:
     _FAST = False
 
-
 try:
     from core.waf_detector import WAFDetector as _CoreWAFDetector
     _HAVE_DETECTOR = True
 except ImportError:
     _HAVE_DETECTOR = False
-
 
 _PAYLOAD_DIR = Path(__file__).parent / "test"
 
@@ -47,8 +41,6 @@ def _load(filename: str) -> List[str]:
         return []
     with open(p, encoding="utf-8", errors="ignore") as f:
         return [ln.strip() for ln in f if ln.strip() and not ln.startswith("#")]
-
-
 
 
 class VulnCategory(Enum):
@@ -85,8 +77,6 @@ class RequestOutcome(Enum):
     TIMEOUT   = "timeout"
 
 
-
-
 @dataclass
 class ProbeRequest:
     url:      str
@@ -112,6 +102,23 @@ class ProbeResult:
     tls_version:      Optional[str] = None
     cert_fingerprint: Optional[str] = None
 
+    def to_trace(self) -> dict:
+        return {
+            "timestamp":        self.timestamp,
+            "layer":            self.request.category.value,
+            "method":           self.request.method,
+            "url":              self.request.url,
+            "payload":          self.request.payload,
+            "encoding":         self.request.encoding,
+            "outcome":          self.outcome.value,
+            "status_code":      self.status_code,
+            "response_time":    round(self.response_time * 1000, 2),
+            "response_size":    self.response_size,
+            "response_body":    self.response_body[:512],
+            "response_headers": self.response_headers,
+            "error":            self.error,
+        }
+
 
 @dataclass
 class VulnFinding:
@@ -121,12 +128,12 @@ class VulnFinding:
     description:    str
     evidence:       List[ProbeResult]
     confidence:     float
-    verified:       bool            = False
-    false_positive: bool            = False
-    cve:            Optional[str]   = None
-    remediation:    str             = ""
-    layer:          str             = ""
-    discovered_at:  float           = field(default_factory=time.monotonic)
+    verified:       bool          = False
+    false_positive: bool          = False
+    cve:            Optional[str] = None
+    remediation:    str           = ""
+    layer:          str           = ""
+    discovered_at:  float         = field(default_factory=time.monotonic)
 
     def to_dict(self) -> dict:
         return {
@@ -173,11 +180,11 @@ class ScanStatistics:
         self.response_times.append(result.response_time)
         cat = result.request.category.value
         if result.outcome == RequestOutcome.PASSED:
-            self.passed    += 1
+            self.passed     += 1
             self.pass_rates[cat].append(1.0)
             self.block_rates[cat].append(0.0)
         elif result.outcome == RequestOutcome.BLOCKED:
-            self.blocked   += 1
+            self.blocked    += 1
             self.pass_rates[cat].append(0.0)
             self.block_rates[cat].append(1.0)
         elif result.outcome == RequestOutcome.CHALLENGE:
@@ -185,9 +192,9 @@ class ScanStatistics:
             self.pass_rates[cat].append(0.5)
             self.block_rates[cat].append(0.5)
         elif result.outcome == RequestOutcome.TIMEOUT:
-            self.timeouts  += 1
+            self.timeouts   += 1
         else:
-            self.errors    += 1
+            self.errors     += 1
         self.timeline.append((result.timestamp, result.request.payload[:60],
                                result.outcome.value))
 
@@ -229,22 +236,16 @@ class ScanStatistics:
             }
         return {
             "total_requests": self.total_requests,
-            "pass_rate":      round(self.passed    / total, 4),
-            "block_rate":     round(self.blocked   / total, 4),
+            "pass_rate":      round(self.passed     / total, 4),
+            "block_rate":     round(self.blocked    / total, 4),
             "challenge_rate": round(self.challenged / total, 4),
             "error_rate":     round((self.errors + self.timeouts) / total, 4),
             "response_time":  rt_dict,
-            "by_category":   by_cat,
+            "by_category":    by_cat,
         }
 
 
-
-
 class ScanSession:
-    """
-    Loads previous scan reports from output_dir and exposes accumulated
-    statistics so that Confidencetracker can start from a warm prior.
-    """
     VERSION = "2.5.0"
 
     def __init__(self, output_dir: Path, target: str):
@@ -265,7 +266,6 @@ class ScanSession:
                 pass
 
     def prior_pass_rates(self) -> Dict[str, float]:
-        """Return per-category pass rates averaged over all past scans."""
         acc: Dict[str, List[float]] = defaultdict(list)
         for report in self.history:
             for cat, v in report.get("statistics", {}).get("by_category", {}).items():
@@ -287,8 +287,6 @@ class ScanSession:
         with open(fpath, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         return fpath
-
-
 
 
 class WAFFingerprinter:
@@ -329,15 +327,15 @@ class WAFFingerprinter:
         else:
             resp_str = " ".join(f"{k}: {v}" for k, v in self.headers.items()) + body
             for sig, name in [
-                ("cf-ray",          "cloudflare"),
-                ("x-iinfo",         "imperva"),
-                ("x-sucuri-id",     "sucuri"),
-                ("x-amzn-requestid","aws_waf"),
+                ("cf-ray",           "cloudflare"),
+                ("x-iinfo",          "imperva"),
+                ("x-sucuri-id",      "sucuri"),
+                ("x-amzn-requestid", "aws_waf"),
                 ("x-check-cacheable","akamai"),
-                ("barra_counter",   "barracuda"),
-                ("fortigate",       "fortiweb"),
-                ("x-waf-status",    "f5_bigip"),
-                ("mod_security",    "modsecurity"),
+                ("barra_counter",    "barracuda"),
+                ("fortigate",        "fortiweb"),
+                ("x-waf-status",     "f5_bigip"),
+                ("mod_security",     "modsecurity"),
             ]:
                 if sig in resp_str.lower():
                     self.waf = name
@@ -351,22 +349,18 @@ class WAFFingerprinter:
         return self.waf, self.version, self.headers
 
 
-
-
 class PayloadEngine:
-    """Loads all payload lists from the test/ directory."""
-
     _ENCODINGS = [
-        ("url",        lambda p: urllib.parse.quote(p)),
-        ("double_url", lambda p: urllib.parse.quote(urllib.parse.quote(p))),
-        ("html_ent",   lambda p: p.replace("<", "&lt;").replace(">", "&gt;")),
-        ("unicode_esc",lambda p: p.encode("unicode_escape").decode()),
-        ("null_byte",  lambda p: p + "%00"),
-        ("case_swap",  lambda p: p.swapcase()),
-        ("tab_space",  lambda p: p.replace(" ", "\t")),
-        ("comment",    lambda p: p.replace(" ", "/**/") if " " in p else p + "/**/"),
-        ("hex",        lambda p: "".join(f"%{ord(c):02x}" for c in p)),
-        ("utf8_over",  lambda p: p.replace("'", "%ef%bc%87")),
+        ("url",         lambda p: urllib.parse.quote(p)),
+        ("double_url",  lambda p: urllib.parse.quote(urllib.parse.quote(p))),
+        ("html_ent",    lambda p: p.replace("<", "&lt;").replace(">", "&gt;")),
+        ("unicode_esc", lambda p: p.encode("unicode_escape").decode()),
+        ("null_byte",   lambda p: p + "%00"),
+        ("case_swap",   lambda p: p.swapcase()),
+        ("tab_space",   lambda p: p.replace(" ", "\t")),
+        ("comment",     lambda p: p.replace(" ", "/**/") if " " in p else p + "/**/"),
+        ("hex",         lambda p: "".join(f"%{ord(c):02x}" for c in p)),
+        ("utf8_over",   lambda p: p.replace("'", "%ef%bc%87")),
     ]
 
     def __init__(self):
@@ -382,14 +376,14 @@ class PayloadEngine:
     def get(self, category: VulnCategory) -> List[Tuple[str, str]]:
         base: List[str] = {
             VulnCategory.SQLI:             self._sqli,
-            VulnCategory.XSS:             self._xss,
-            VulnCategory.RCE:             self._rce,
-            VulnCategory.LFI:             self._lfi,
-            VulnCategory.HEADER_INJECTION:self._headers,
-            VulnCategory.ENCODING_BYPASS: self._sqli[:10] + self._xss[:10],
-            VulnCategory.SESSION_BYPASS:  self._session,
-            VulnCategory.MISCONFIGURATION:self._misconf,
-            VulnCategory.RULE_GAP:        self._bypass,
+            VulnCategory.XSS:              self._xss,
+            VulnCategory.RCE:              self._rce,
+            VulnCategory.LFI:              self._lfi,
+            VulnCategory.HEADER_INJECTION: self._headers,
+            VulnCategory.ENCODING_BYPASS:  self._sqli[:10] + self._xss[:10],
+            VulnCategory.SESSION_BYPASS:   self._session,
+            VulnCategory.MISCONFIGURATION: self._misconf,
+            VulnCategory.RULE_GAP:         self._bypass,
         }.get(category, [])
 
         results: List[Tuple[str, str]] = [(p, "none") for p in base]
@@ -404,6 +398,29 @@ class PayloadEngine:
         return results
 
 
+class RequestThrottler:
+    def __init__(self, rps: float = 3.0):
+        self._interval = 1.0 / max(rps, 0.1)
+        self._last     = 0.0
+        self._lock     = threading.Lock()
+
+    def wait(self):
+        with self._lock:
+            elapsed = time.monotonic() - self._last
+            if elapsed < self._interval:
+                time.sleep(self._interval - elapsed)
+            self._last = time.monotonic()
+
+    def set_rps(self, rps: float):
+        with self._lock:
+            self._interval = 1.0 / max(rps, 0.1)
+
+    def cooldown(self, seconds: float):
+        time.sleep(seconds)
+
+    @staticmethod
+    def make() -> "RequestThrottler":
+        return RequestThrottler()
 
 
 class HTTPProber:
@@ -432,7 +449,7 @@ class HTTPProber:
                 hdrs    = {k.lower(): v for k, v in resp.headers.items()}
                 outcome = self._classify(resp.status, body, hdrs)
                 tls_ver = getattr(resp.fp, "_sock", None)
-                tls_ver = getattr(tls_ver, "version", lambda: None)()  if tls_ver else None
+                tls_ver = getattr(tls_ver, "version", lambda: None)() if tls_ver else None
                 return ProbeResult(
                     request=probe, outcome=outcome,
                     status_code=resp.status, response_time=elapsed,
@@ -492,28 +509,6 @@ class HTTPProber:
         return RequestOutcome.BLOCKED
 
 
-
-
-class RequestThrottler:
-    def __init__(self, rps: float = 3.0):
-        self._interval = 1.0 / max(rps, 0.1)
-        self._last     = 0.0
-        self._lock     = threading.Lock()
-
-    def wait(self):
-        with self._lock:
-            elapsed = time.monotonic() - self._last
-            if elapsed < self._interval:
-                time.sleep(self._interval - elapsed)
-            self._last = time.monotonic()
-
-    def set_rps(self, rps: float):
-        with self._lock:
-            self._interval = 1.0 / max(rps, 0.1)
-
-
-
-
 class ConfidenceTracker:
     def __init__(self, prior_rates: Optional[Dict[str, float]] = None):
         self._scores: Dict[str, List[float]] = defaultdict(list)
@@ -551,11 +546,6 @@ class ConfidenceTracker:
             return float(np.mean(np.array(all_s))) if all_s else 0.0
 
 
-
-#  LAYER 1  —  NetworkLayer
-#  Tests TCP behaviour, HTTP/1.1 vs HTTP/2 handling, connection reuse.
-
-
 class NetworkLayer:
     NAME = "Layer1:Network"
 
@@ -572,9 +562,8 @@ class NetworkLayer:
         parsed  = urllib.parse.urlparse(self._target)
         host    = parsed.netloc.split(":")[0]
 
-        # probe with different Host headers (virtual host bypass)
         alt_hosts = [
-            f"127.0.0.1", f"localhost", f"internal.{host}",
+            "127.0.0.1", "localhost", f"internal.{host}",
             f"admin.{host}", f"origin.{host}", f"direct.{host}",
             host + ".evil.com",
         ]
@@ -593,7 +582,6 @@ class NetworkLayer:
                                     r.outcome == RequestOutcome.PASSED)
             results.append(r)
 
-        # HTTP/0.9 and malformed version probes
         for path in ["/.git/HEAD", "/.env", "/wp-config.php",
                      "/server-status", "/phpinfo.php", "/.htaccess"]:
             self._throttler.wait()
@@ -611,11 +599,6 @@ class NetworkLayer:
                                     r.outcome == RequestOutcome.PASSED)
             results.append(r)
         return results
-
-
-
-#  LAYER 2  —  RuleEngineLayer
-#  Payload-based WAF rule-gap detection (SQLi, XSS, RCE, LFI).
 
 
 class RuleEngineLayer:
@@ -640,12 +623,9 @@ class RuleEngineLayer:
                           for p in self._INJECT_PARAMS[:3])
         return f"{self._target}{sep}{params}"
 
-    def scan_category(self, category: VulnCategory,
-                      on_progress: Optional[Callable] = None) -> List[ProbeResult]:
+    def scan_category(self, category: VulnCategory) -> List[ProbeResult]:
         results: List[ProbeResult] = []
-        payloads = self._payloads.get(category)
-
-        for i, (payload, encoding) in enumerate(payloads):
+        for payload, encoding in self._payloads.get(category):
             self._throttler.wait()
             probe = ProbeRequest(
                 url=self._make_url(payload),
@@ -664,13 +644,9 @@ class RuleEngineLayer:
         return results
 
 
-
-#  LAYER 3  —  RateLimitLayer
-#  Tests WAF rate-limit enforcement: burst, sustained, distributed.
-
-
 class RateLimitLayer:
-    NAME = "Layer3:RateLimit"
+    NAME     = "Layer3:RateLimit"
+    COOLDOWN = 15.0
 
     def __init__(self, target: str, prober: HTTPProber,
                  stats: ScanStatistics, confidence: ConfidenceTracker):
@@ -678,17 +654,18 @@ class RateLimitLayer:
         self._prober     = prober
         self._stats      = stats
         self._confidence = confidence
+        self._throttler  = RequestThrottler(rps=3.0)
 
     def scan(self, burst: int = 40, sustained_rps: float = 15.0,
              duration: float = 10.0) -> List[ProbeResult]:
         results: List[ProbeResult] = []
-
 
         probe = ProbeRequest(
             url=self._target, method="GET",
             headers={"User-Agent": "Mozilla/5.0"},
             payload="RATE_BURST", category=VulnCategory.RATE_LIMIT,
         )
+
         with ThreadPoolExecutor(max_workers=burst) as ex:
             futs = [ex.submit(self._prober.probe, probe) for _ in range(burst)]
             for fut in futs:
@@ -698,6 +675,7 @@ class RateLimitLayer:
                                         r.outcome == RequestOutcome.PASSED)
                 results.append(r)
 
+        self._throttler.cooldown(self.COOLDOWN)
 
         interval = 1.0 / sustained_rps
         end_ts   = time.monotonic() + duration
@@ -713,12 +691,8 @@ class RateLimitLayer:
             results.append(r)
             time.sleep(interval)
 
+        self._throttler.cooldown(self.COOLDOWN)
         return results
-
-
-
-#  LAYER 4  —  EvasionLayer
-#  Encoding, obfuscation, and normalization bypass techniques.
 
 
 class EvasionLayer:
@@ -736,10 +710,8 @@ class EvasionLayer:
 
     def scan(self) -> List[ProbeResult]:
         results: List[ProbeResult] = []
-        pairs   = self._payloads.get(VulnCategory.ENCODING_BYPASS)
-        sep     = "&" if "?" in self._target else "?"
-
-        for payload, encoding in pairs:
+        sep = "&" if "?" in self._target else "?"
+        for payload, encoding in self._payloads.get(VulnCategory.ENCODING_BYPASS):
             self._throttler.wait()
             probe = ProbeRequest(
                 url=f"{self._target}{sep}q={payload}",
@@ -754,16 +726,10 @@ class EvasionLayer:
             self._stats.record(r)
             self._confidence.record(VulnCategory.ENCODING_BYPASS.value,
                                     r.outcome == RequestOutcome.PASSED)
-            # compute entropy 
             if _FAST:
                 _fsc.compute_entropy(payload)
             results.append(r)
         return results
-
-
-
-#  LAYER 5  —  BehaviouralLayer
-#  Timing-based analysis: tarpit, JS challenge delay, back-off.
 
 
 class BehaviouralLayer:
@@ -782,7 +748,6 @@ class BehaviouralLayer:
     def scan(self, rounds: int = 20) -> Tuple[List[ProbeResult], dict]:
         results: List[ProbeResult] = []
         times:   List[float]       = []
-
         for _ in range(rounds):
             self._throttler.wait()
             probe = ProbeRequest(
@@ -814,11 +779,6 @@ class BehaviouralLayer:
         return results, anomaly
 
 
-
-#  LAYER 6  —  HeaderLayer
-#  HTTP header injection, spoofing, and IP-bypass techniques.
-
-
 class HeaderLayer:
     NAME = "Layer6:Header"
 
@@ -834,11 +794,9 @@ class HeaderLayer:
 
     def scan(self) -> List[ProbeResult]:
         results: List[ProbeResult] = []
-        pairs   = self._payloads.get(VulnCategory.HEADER_INJECTION)
-
-        for raw_header, _ in pairs:
+        for raw_header, _ in self._payloads.get(VulnCategory.HEADER_INJECTION):
             self._throttler.wait()
-            hdrs = {"User-Agent": "Mozilla/5.0"}
+            hdrs  = {"User-Agent": "Mozilla/5.0"}
             parts = raw_header.split(":", 1)
             if len(parts) == 2:
                 hdrs[parts[0].strip()] = parts[1].strip()
@@ -855,11 +813,6 @@ class HeaderLayer:
         return results
 
 
-
-#  LAYER 7  —  TLSInspectionLayer
-#  TLS version probes, cert anomaly detection, SNI bypass.
-
-
 class TLSInspectionLayer:
     NAME = "Layer7:TLS"
 
@@ -874,40 +827,37 @@ class TLSInspectionLayer:
 
     def scan(self) -> dict:
         result = {
-            "tls_versions":   [],
-            "cert_cn":        "",
-            "cert_san":       [],
-            "cert_fp":        "",
-            "sni_bypass":     False,
-            "old_tls_allowed":False,
+            "tls_versions":    [],
+            "cert_cn":         "",
+            "cert_san":        [],
+            "cert_fp":         "",
+            "sni_bypass":      False,
+            "old_tls_allowed": False,
         }
-        # probe TLS versions
-        for proto in [ssl.PROTOCOL_TLS_CLIENT]:
-            for min_ver, label in [
-                (ssl.TLSVersion.TLSv1,   "TLSv1.0"),
-                (ssl.TLSVersion.TLSv1_1, "TLSv1.1"),
-                (ssl.TLSVersion.TLSv1_2, "TLSv1.2"),
-                (ssl.TLSVersion.TLSv1_3, "TLSv1.3"),
-            ]:
-                try:
-                    ctx = ssl.SSLContext(proto)
-                    ctx.minimum_version   = min_ver
-                    ctx.maximum_version   = min_ver
-                    ctx.check_hostname    = False
-                    ctx.verify_mode       = ssl.CERT_NONE
-                    with socket.create_connection(
-                            (self._host, self._port), timeout=5) as sock:
-                        with ctx.wrap_socket(sock, server_hostname=self._host) as ssock:
-                            result["tls_versions"].append(label)
-                            if label in ("TLSv1.0", "TLSv1.1"):
-                                result["old_tls_allowed"] = True
-                            cert = ssock.getpeercert(binary_form=True)
-                            if cert:
-                                result["cert_fp"] = hashlib.sha256(cert).hexdigest()[:16]
-                except Exception:
-                    pass
+        for min_ver, label in [
+            (ssl.TLSVersion.TLSv1,   "TLSv1.0"),
+            (ssl.TLSVersion.TLSv1_1, "TLSv1.1"),
+            (ssl.TLSVersion.TLSv1_2, "TLSv1.2"),
+            (ssl.TLSVersion.TLSv1_3, "TLSv1.3"),
+        ]:
+            try:
+                ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                ctx.minimum_version   = min_ver
+                ctx.maximum_version   = min_ver
+                ctx.check_hostname    = False
+                ctx.verify_mode       = ssl.CERT_NONE
+                with socket.create_connection(
+                        (self._host, self._port), timeout=5) as sock:
+                    with ctx.wrap_socket(sock, server_hostname=self._host) as ssock:
+                        result["tls_versions"].append(label)
+                        if label in ("TLSv1.0", "TLSv1.1"):
+                            result["old_tls_allowed"] = True
+                        cert = ssock.getpeercert(binary_form=True)
+                        if cert:
+                            result["cert_fp"] = hashlib.sha256(cert).hexdigest()[:16]
+            except Exception:
+                pass
 
-        # SNI bypass send wrong SNI
         try:
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
@@ -921,11 +871,6 @@ class TLSInspectionLayer:
         self._confidence.record(VulnCategory.TLS_ANOMALY.value,
                                 result["old_tls_allowed"] or result["sni_bypass"])
         return result
-
-
-
-#  LAYER 8  —  MethodVerbLayer
-#  HTTP method/verb bypass probes.
 
 
 class MethodVerbLayer:
@@ -962,11 +907,6 @@ class MethodVerbLayer:
         return results
 
 
-
-#  LAYER 9  —  SessionLayer
-#  Cookie manipulation, auth-bypass, session-fixation probes.
-
-
 class SessionLayer:
     NAME = "Layer9:Session"
 
@@ -982,15 +922,13 @@ class SessionLayer:
 
     def scan(self) -> List[ProbeResult]:
         results: List[ProbeResult] = []
-        pairs   = self._payloads.get(VulnCategory.SESSION_BYPASS)
-
-        for payload, encoding in pairs:
+        for payload, encoding in self._payloads.get(VulnCategory.SESSION_BYPASS):
             self._throttler.wait()
             probe = ProbeRequest(
                 url=self._target, method="GET",
                 headers={
-                    "User-Agent": "Mozilla/5.0",
-                    "Cookie": payload,
+                    "User-Agent":    "Mozilla/5.0",
+                    "Cookie":        payload,
                     "Authorization": f"Bearer {payload}",
                 },
                 payload=payload,
@@ -1003,11 +941,6 @@ class SessionLayer:
                                     r.outcome == RequestOutcome.PASSED)
             results.append(r)
         return results
-
-
-
-#  LAYER 10  —  MisconfigLayer
-#  WAF misconfiguration and information-leak probes.
 
 
 class MisconfigLayer:
@@ -1025,10 +958,8 @@ class MisconfigLayer:
 
     def scan(self) -> List[ProbeResult]:
         results: List[ProbeResult] = []
-        pairs   = self._payloads.get(VulnCategory.MISCONFIGURATION)
         parsed  = urllib.parse.urlparse(self._target)
-
-        for path, _ in pairs:
+        for path, _ in self._payloads.get(VulnCategory.MISCONFIGURATION):
             self._throttler.wait()
             url   = f"{parsed.scheme}://{parsed.netloc}{path}"
             probe = ProbeRequest(
@@ -1045,78 +976,50 @@ class MisconfigLayer:
         return results
 
 
-
-
 class FindingAnalyser:
     _MIN_CONF    = 0.30
     _MIN_SAMPLES = 3
 
     _META: Dict[VulnCategory, Tuple[str, VulnSeverity, str, Optional[str]]] = {
         VulnCategory.SQLI:   (
-            "SQL Injection Rule Gap",
-            VulnSeverity.CRITICAL,
-            "Strengthen SQLi ruleset; use parameterized queries.",
-            "CVE-2022-27978"),
+            "SQL Injection Rule Gap", VulnSeverity.CRITICAL,
+            "Strengthen SQLi ruleset; use parameterized queries.", "CVE-2022-27978"),
         VulnCategory.XSS:    (
-            "XSS Filter Bypass",
-            VulnSeverity.HIGH,
-            "Update XSS ruleset; enforce Content-Security-Policy.",
-            None),
+            "XSS Filter Bypass", VulnSeverity.HIGH,
+            "Update XSS ruleset; enforce Content-Security-Policy.", None),
         VulnCategory.RCE:    (
-            "Remote Code Execution Rule Gap",
-            VulnSeverity.CRITICAL,
-            "Enforce strict RCE rules; sandbox application execution.",
-            None),
+            "Remote Code Execution Rule Gap", VulnSeverity.CRITICAL,
+            "Enforce strict RCE rules; sandbox application execution.", None),
         VulnCategory.LFI:    (
-            "Local File Inclusion Bypass",
-            VulnSeverity.HIGH,
-            "Enable path-traversal normalization; restrict file access.",
-            None),
+            "Local File Inclusion Bypass", VulnSeverity.HIGH,
+            "Enable path-traversal normalization; restrict file access.", None),
         VulnCategory.HEADER_INJECTION: (
-            "HTTP Header Injection / IP Spoofing",
-            VulnSeverity.MEDIUM,
-            "Validate/strip untrusted header values on ingress.",
-            None),
+            "HTTP Header Injection / IP Spoofing", VulnSeverity.MEDIUM,
+            "Validate/strip untrusted header values on ingress.", None),
         VulnCategory.METHOD_BYPASS: (
-            "HTTP Method Bypass",
-            VulnSeverity.MEDIUM,
-            "Whitelist allowed HTTP verbs; block TRACE/CONNECT.",
-            None),
+            "HTTP Method Bypass", VulnSeverity.MEDIUM,
+            "Whitelist allowed HTTP verbs; block TRACE/CONNECT.", None),
         VulnCategory.RATE_LIMIT: (
-            "Rate Limiting Weakness",
-            VulnSeverity.MEDIUM,
-            "Enforce IP-based and token-bucket rate limiting.",
-            None),
+            "Rate Limiting Weakness", VulnSeverity.MEDIUM,
+            "Enforce IP-based and token-bucket rate limiting.", None),
         VulnCategory.ENCODING_BYPASS: (
-            "Encoding / Normalization Bypass",
-            VulnSeverity.HIGH,
-            "Enable double-decode; normalise all input before inspection.",
-            None),
+            "Encoding / Normalization Bypass", VulnSeverity.HIGH,
+            "Enable double-decode; normalise all input before inspection.", None),
         VulnCategory.TLS_ANOMALY: (
-            "TLS Misconfiguration",
-            VulnSeverity.MEDIUM,
-            "Disable TLS < 1.2; enforce strict SNI validation.",
-            None),
+            "TLS Misconfiguration", VulnSeverity.MEDIUM,
+            "Disable TLS < 1.2; enforce strict SNI validation.", None),
         VulnCategory.SESSION_BYPASS: (
-            "Session / Auth Bypass",
-            VulnSeverity.HIGH,
-            "Validate all auth tokens server-side; rotate session IDs.",
-            None),
+            "Session / Auth Bypass", VulnSeverity.HIGH,
+            "Validate all auth tokens server-side; rotate session IDs.", None),
         VulnCategory.MISCONFIGURATION: (
-            "WAF Misconfiguration / Info Leak",
-            VulnSeverity.MEDIUM,
-            "Restrict sensitive paths; remove server version banners.",
-            None),
+            "WAF Misconfiguration / Info Leak", VulnSeverity.MEDIUM,
+            "Restrict sensitive paths; remove server version banners.", None),
         VulnCategory.NETWORK_LAYER: (
-            "Network-Layer Bypass (Virtual Host / Path)",
-            VulnSeverity.HIGH,
-            "Validate Host header; block direct-IP access.",
-            None),
+            "Network-Layer Bypass (Virtual Host / Path)", VulnSeverity.HIGH,
+            "Validate Host header; block direct-IP access.", None),
         VulnCategory.BEHAVIOURAL: (
-            "Timing Anomaly / Tarpit Detected",
-            VulnSeverity.LOW,
-            "Review rate-limit and JS-challenge thresholds.",
-            None),
+            "Timing Anomaly / Tarpit Detected", VulnSeverity.LOW,
+            "Review rate-limit and JS-challenge thresholds.", None),
     }
 
     def analyse(self, category: VulnCategory, results: List[ProbeResult],
@@ -1132,7 +1035,7 @@ class FindingAnalyser:
         if pr < 0.05 or conf < self._MIN_CONF:
             return None
 
-        meta  = self._META.get(category)
+        meta = self._META.get(category)
         if not meta:
             title = f"{category.value} Vulnerability"
             sev   = VulnSeverity.LOW
@@ -1143,7 +1046,7 @@ class FindingAnalyser:
             sev = self._severity(category, pr, conf, base_sev)
 
         desc = (f"{title} — pass_rate={pr:.1%}  confidence={conf:.1%}  "
-                f"samples={total}  layer={self._META.get(category, ('','','',''))[0]}")
+                f"samples={total}")
 
         return VulnFinding(
             category=category, severity=sev, title=title,
@@ -1165,8 +1068,6 @@ class FindingAnalyser:
         if pr > 0.5 and conf > 0.6:
             return VulnSeverity.HIGH
         return base
-
-
 
 
 class VulnVerifier:
@@ -1209,8 +1110,6 @@ class VulnVerifier:
         return finding
 
 
-
-
 class ReportGenerator:
     def __init__(self, output_dir: Path):
         self._dir = output_dir
@@ -1231,7 +1130,7 @@ class ReportGenerator:
         data = {
             "target":     target,
             "scan_ts":    datetime.now().isoformat(),
-            "scanner":    "EvilWAF v2.5.0",
+            "scanner":    "EvilWAF v2.5.1",
             "duration_s": round(duration, 2),
             "scan_index": session.scan_count(),
             "waf_info":   waf_info,
@@ -1250,92 +1149,73 @@ class ReportGenerator:
         return session.save_report(data)
 
 
-
-
 class WAFVulnScanner:
-    """
-    Deep, persistent, multi-layer WAF vulnerability scanner.
-
-    Usage:
-        scanner = WAFVulnScanner(target="https://example.com", rps=3.0)
-        findings = scanner.scan(on_finding=cb, on_progress=pb)
-    """
-
     def __init__(
         self,
         target:          str,
-        output_dir:      Optional[str]            = None,
-        rps:             float                    = 3.0,
-        timeout:         float                    = 12.0,
+        output_dir:      Optional[str]                = None,
+        rps:             float                        = 3.0,
+        timeout:         float                        = 12.0,
         categories:      Optional[List[VulnCategory]] = None,
-        verify_findings: bool                     = True,
-        min_confidence:  float                    = 0.30,
+        verify_findings: bool                         = True,
+        min_confidence:  float                        = 0.30,
+        layer_cooldown:  float                        = 8.0,
     ):
-        self.target    = target if target.startswith("http") else f"https://{target}"
-        self._rps      = rps
-        self._timeout  = timeout
-        self._verify   = verify_findings
-        self._min_conf = min_confidence
-        self._categories = categories or list(VulnCategory)
+        self.target          = target if target.startswith("http") else f"https://{target}"
+        self._rps            = rps
+        self._timeout        = timeout
+        self._verify         = verify_findings
+        self._min_conf       = min_confidence
+        self._layer_cooldown = layer_cooldown
+        self._categories     = categories or list(VulnCategory)
 
         parsed      = urllib.parse.urlparse(self.target)
         out_default = Path("vulns") / parsed.netloc.replace(":", "_")
         out_path    = Path(output_dir) if output_dir else out_default
 
-
         self._session    = ScanSession(out_path, self.target)
         self._prober     = HTTPProber(self.target, timeout)
-        self._throttler  = RequestThrottler(rps)
         self._stats      = ScanStatistics()
         self._confidence = ConfidenceTracker(
             prior_rates=self._session.prior_pass_rates()
         )
         self._payloads   = PayloadEngine()
         self._analyser   = FindingAnalyser()
-        self._verifier   = VulnVerifier(self._prober, self._throttler)
         self._reporter   = ReportGenerator(out_path)
 
+        self._raw_traces:  List[dict] = []
+        self._traces_lock = threading.Lock()
 
-        self._l1_network  = NetworkLayer(
-            self.target, self._prober, self._throttler,
-            self._stats, self._confidence)
-        self._l2_rules    = RuleEngineLayer(
-            self.target, self._prober, self._throttler,
-            self._stats, self._confidence, self._payloads)
-        self._l3_rate     = RateLimitLayer(
-            self.target, self._prober, self._stats, self._confidence)
-        self._l4_evasion  = EvasionLayer(
-            self.target, self._prober, self._throttler,
-            self._stats, self._confidence, self._payloads)
-        self._l5_behav    = BehaviouralLayer(
-            self.target, self._prober, self._throttler,
-            self._stats, self._confidence)
-        self._l6_header   = HeaderLayer(
-            self.target, self._prober, self._throttler,
-            self._stats, self._confidence, self._payloads)
-        self._l7_tls      = TLSInspectionLayer(
-            self.target, self._stats, self._confidence)
-        self._l8_method   = MethodVerbLayer(
-            self.target, self._prober, self._throttler,
-            self._stats, self._confidence)
-        self._l9_session  = SessionLayer(
-            self.target, self._prober, self._throttler,
-            self._stats, self._confidence, self._payloads)
-        self._l10_misconf = MisconfigLayer(
-            self.target, self._prober, self._throttler,
-            self._stats, self._confidence, self._payloads)
+        def _t() -> RequestThrottler:
+            return RequestThrottler(rps)
 
-        self._findings:   List[VulnFinding] = []
-        self._running     = False
-        self._start_time  = 0.0
-        self._waf_info:   dict = {}
-        self._tls_info:   dict = {}
+        self._l1_network  = NetworkLayer(self.target, self._prober, _t(), self._stats, self._confidence)
+        self._l2_rules    = RuleEngineLayer(self.target, self._prober, _t(), self._stats, self._confidence, self._payloads)
+        self._l3_rate     = RateLimitLayer(self.target, self._prober, self._stats, self._confidence)
+        self._l4_evasion  = EvasionLayer(self.target, self._prober, _t(), self._stats, self._confidence, self._payloads)
+        self._l5_behav    = BehaviouralLayer(self.target, self._prober, _t(), self._stats, self._confidence)
+        self._l6_header   = HeaderLayer(self.target, self._prober, _t(), self._stats, self._confidence, self._payloads)
+        self._l7_tls      = TLSInspectionLayer(self.target, self._stats, self._confidence)
+        self._l8_method   = MethodVerbLayer(self.target, self._prober, _t(), self._stats, self._confidence)
+        self._l9_session  = SessionLayer(self.target, self._prober, _t(), self._stats, self._confidence, self._payloads)
+        self._l10_misconf = MisconfigLayer(self.target, self._prober, _t(), self._stats, self._confidence, self._payloads)
+        self._verifier    = VulnVerifier(self._prober, _t())
 
+        self._findings:  List[VulnFinding] = []
+        self._running    = False
+        self._start_time = 0.0
+        self._waf_info:  dict = {}
+        self._tls_info:  dict = {}
 
+    def _record_traces(self, results: List[ProbeResult]):
+        with self._traces_lock:
+            for r in results:
+                self._raw_traces.append(r.to_trace())
 
     def _baseline(self) -> Tuple[List[ProbeResult], float]:
         results: List[ProbeResult] = []
         parsed  = urllib.parse.urlparse(self.target)
+        t       = RequestThrottler(self._rps)
         for path in ["/", "/index.html", "/favicon.ico", "/robots.txt"]:
             url   = f"{parsed.scheme}://{parsed.netloc}{path}"
             probe = ProbeRequest(
@@ -1343,21 +1223,17 @@ class WAFVulnScanner:
                 headers={"User-Agent": "Mozilla/5.0"},
                 payload="BASELINE", category=VulnCategory.RULE_GAP,
             )
-            self._throttler.wait()
+            t.wait()
             results.append(self._prober.probe(probe))
         times_ms = [r.response_time * 1000 for r in results
                     if r.outcome not in (RequestOutcome.ERROR, RequestOutcome.TIMEOUT)]
         bms = float(np.mean(times_ms)) if times_ms else 0.0
         return results, bms
 
-
-
     def _emit(self, category: VulnCategory, results: List[ProbeResult],
-              baseline: List[ProbeResult],
-              on_finding: Optional[Callable]):
-        finding = self._analyser.analyse(
-            category, results, self._confidence, self._stats
-        )
+              baseline: List[ProbeResult], on_finding: Optional[Callable]):
+        self._record_traces(results)
+        finding = self._analyser.analyse(category, results, self._confidence, self._stats)
         if finding and finding.confidence >= self._min_conf:
             if self._verify:
                 finding = self._verifier.verify(finding, baseline)
@@ -1367,7 +1243,27 @@ class WAFVulnScanner:
                 if on_finding:
                     on_finding(finding)
 
-
+    def scan_layer(self, category: VulnCategory,
+                   on_finding: Optional[Callable] = None) -> List[VulnFinding]:
+        baseline, baseline_ms         = self._baseline()
+        self._l5_behav._baseline_ms   = baseline_ms
+        dispatch = {
+            VulnCategory.METHOD_BYPASS:    self._l8_method.scan,
+            VulnCategory.RATE_LIMIT:       self._l3_rate.scan,
+            VulnCategory.NETWORK_LAYER:    self._l1_network.scan,
+            VulnCategory.ENCODING_BYPASS:  self._l4_evasion.scan,
+            VulnCategory.HEADER_INJECTION: self._l6_header.scan,
+            VulnCategory.SESSION_BYPASS:   self._l9_session.scan,
+            VulnCategory.MISCONFIGURATION: self._l10_misconf.scan,
+        }
+        if category == VulnCategory.BEHAVIOURAL:
+            results, _ = self._l5_behav.scan()
+        elif category in dispatch:
+            results = dispatch[category]()
+        else:
+            results = self._l2_rules.scan_category(category)
+        self._emit(category, results, baseline, on_finding)
+        return list(self._findings)
 
     def scan(self,
              on_finding:  Optional[Callable] = None,
@@ -1376,18 +1272,16 @@ class WAFVulnScanner:
         self._running    = True
         self._start_time = time.monotonic()
 
-
         fp = WAFFingerprinter(self.target)
-        waf, ver, hdrs = fp.fingerprint()
+        waf, ver, hdrs  = fp.fingerprint()
         self._waf_info  = {"waf": waf, "version": ver,
                             "headers": dict(list(hdrs.items())[:10])}
 
-        
-        baseline, baseline_ms = self._baseline()
+        baseline, baseline_ms       = self._baseline()
         self._l5_behav._baseline_ms = baseline_ms
 
         total_steps = 12
-        step = 0
+        step        = 0
 
         def prog(name: str):
             nonlocal step
@@ -1395,53 +1289,42 @@ class WAFVulnScanner:
             if on_progress:
                 on_progress(step, total_steps, name)
 
+        def run(name: str, category: VulnCategory,
+                fn: Callable[[], List[ProbeResult]], cooldown: bool = False):
+            prog(name)
+            if not self._running:
+                return
+            results = fn()
+            self._emit(category, results, baseline, on_finding)
+            if cooldown:
+                time.sleep(self._layer_cooldown)
 
-        prog(NetworkLayer.NAME)
-        if self._running:
-            r = self._l1_network.scan()
-            self._emit(VulnCategory.NETWORK_LAYER, r, baseline, on_finding)
+        run(NetworkLayer.NAME, VulnCategory.NETWORK_LAYER, self._l1_network.scan)
 
-
-        rule_cats = [VulnCategory.SQLI, VulnCategory.XSS,
-                     VulnCategory.RCE,  VulnCategory.LFI]
-        for cat in rule_cats:
+        for cat in [VulnCategory.SQLI, VulnCategory.XSS,
+                    VulnCategory.RCE,  VulnCategory.LFI]:
             if not self._running:
                 break
             prog(f"{RuleEngineLayer.NAME}:{cat.value}")
             r = self._l2_rules.scan_category(cat)
             self._emit(cat, r, baseline, on_finding)
 
-
-        prog(RateLimitLayer.NAME)
-        if self._running:
-            r = self._l3_rate.scan()
-            self._emit(VulnCategory.RATE_LIMIT, r, baseline, on_finding)
-
-
-        prog(EvasionLayer.NAME)
-        if self._running:
-            r = self._l4_evasion.scan()
-            self._emit(VulnCategory.ENCODING_BYPASS, r, baseline, on_finding)
-
+        run(RateLimitLayer.NAME,   VulnCategory.RATE_LIMIT,       self._l3_rate.scan,    cooldown=True)
+        run(EvasionLayer.NAME,     VulnCategory.ENCODING_BYPASS,  self._l4_evasion.scan)
 
         prog(BehaviouralLayer.NAME)
         if self._running:
             r, anomaly = self._l5_behav.scan()
+            self._record_traces(r)
             if anomaly.get("anomaly"):
                 self._emit(VulnCategory.BEHAVIOURAL, r, baseline, on_finding)
 
-
-        prog(HeaderLayer.NAME)
-        if self._running:
-            r = self._l6_header.scan()
-            self._emit(VulnCategory.HEADER_INJECTION, r, baseline, on_finding)
-
+        run(HeaderLayer.NAME,      VulnCategory.HEADER_INJECTION, self._l6_header.scan)
 
         prog(TLSInspectionLayer.NAME)
         if self._running:
             self._tls_info = self._l7_tls.scan()
-            if (self._tls_info.get("old_tls_allowed") or
-                    self._tls_info.get("sni_bypass")):
+            if self._tls_info.get("old_tls_allowed") or self._tls_info.get("sni_bypass"):
                 self._findings.append(VulnFinding(
                     category=VulnCategory.TLS_ANOMALY,
                     severity=VulnSeverity.MEDIUM,
@@ -1451,32 +1334,17 @@ class WAFVulnScanner:
                         f"sni_bypass={self._tls_info['sni_bypass']}  "
                         f"versions={self._tls_info['tls_versions']}"
                     ),
-                    evidence=[],
-                    confidence=0.85,
-                    verified=True,
+                    evidence=[], confidence=0.85, verified=True,
                     remediation="Disable TLS < 1.2; enforce strict SNI.",
                     layer=TLSInspectionLayer.NAME,
                 ))
 
-
-        prog(MethodVerbLayer.NAME)
-        if self._running:
-            r = self._l8_method.scan()
-            self._emit(VulnCategory.METHOD_BYPASS, r, baseline, on_finding)
-
-
-        prog(SessionLayer.NAME)
-        if self._running:
-            r = self._l9_session.scan()
-            self._emit(VulnCategory.SESSION_BYPASS, r, baseline, on_finding)
-
-
-        prog(MisconfigLayer.NAME)
-        if self._running:
-            r = self._l10_misconf.scan()
-            self._emit(VulnCategory.MISCONFIGURATION, r, baseline, on_finding)
+        run(MethodVerbLayer.NAME,  VulnCategory.METHOD_BYPASS,    self._l8_method.scan)
+        run(SessionLayer.NAME,     VulnCategory.SESSION_BYPASS,   self._l9_session.scan)
+        run(MisconfigLayer.NAME,   VulnCategory.MISCONFIGURATION, self._l10_misconf.scan)
 
         duration = time.monotonic() - self._start_time
+        self._save_traces()
         self._reporter.save_full(
             self._session, self.target, self._findings,
             self._stats, self._waf_info, self._tls_info, duration,
@@ -1484,7 +1352,19 @@ class WAFVulnScanner:
         self._running = False
         return self._findings
 
-
+    def _save_traces(self):
+        with self._traces_lock:
+            if not self._raw_traces:
+                return
+            ts    = datetime.now().strftime("%Y%m%d_%H%M%S")
+            fpath = self._reporter._dir / f"traces_{ts}.json"
+            with open(fpath, "w", encoding="utf-8") as f:
+                json.dump({
+                    "target":       self.target,
+                    "scan_ts":      datetime.now().isoformat(),
+                    "total_traces": len(self._raw_traces),
+                    "traces":       self._raw_traces,
+                }, f, indent=2, ensure_ascii=False)
 
     def stop(self):
         self._running = False
@@ -1497,6 +1377,10 @@ class WAFVulnScanner:
 
     def get_findings(self) -> List[VulnFinding]:
         return list(self._findings)
+
+    def get_raw_traces(self) -> List[dict]:
+        with self._traces_lock:
+            return list(self._raw_traces)
 
     @property
     def waf_info(self) -> dict:
