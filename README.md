@@ -1,6 +1,6 @@
 <p align="center">
   <img alt="Evilwaf Logo"
-  src="https://raw.githubusercontent.com/matrixleons/evilwaf/main/media/evilwaf.jpg"
+  src="https://raw.githubusercontent.com/matrixleons/evilwaf/main/media/evilwaf.png"
   style="width:100%;max-width:800px;" />
 </p>
 
