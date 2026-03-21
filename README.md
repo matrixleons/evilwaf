@@ -142,7 +142,7 @@ If EvilWAF has been useful to you, consider supporting its development. Your con
   </a>
 </p>
 
-**[Donate via PesaPal](https://store.pesapal.com/supportmywork)**
+**[Donate](https://store.pesapal.com/supportmywork)**
 
 I appreciate Thank you. 
 
