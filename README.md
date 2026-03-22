@@ -13,7 +13,7 @@
 
 ---
 
-**EvilWAF** is an advanced transparent MITM Firewall bypass proxy and deep WAF vulnerability scanner designed for authorized security testing. It operates at the transport layer — it does not touch payloads, cookies, or headers from your tools. Works with any tool that supports `--proxy`.
+**EvilWAF** is an advanced transparent MITM Firewall bypass proxy and deep WAF vulnerability scanner designed for authorized security testing. It operates at the transport layer — it does not touch payloads, cookies, or headers from your tools. Works with any tool like(`ffuz`, `sqlmap`, `nuclei` and etc) that supports `--proxy`.
 
 ---
 
