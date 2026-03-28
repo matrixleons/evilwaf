@@ -1,0 +1,162 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock
+          pip install coverage
+
+      - name: Run tests with coverage
+        run: |
+          coverage run --source=core,chemistry -m unittest discover -s tests -v
+          coverage report -m --fail-under=100
+
+  quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+
+      - name: Install quality tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Lint (Ruff)
+        run: |
+          ruff check core chemistry evilwaf.py --select F,E9
+
+      - name: Format check (Black)
+        run: |
+          black --check core/models.py core/pipeline.py
+
+      - name: Type check (Mypy)
+        run: |
+          mypy --strict --follow-imports=skip --ignore-missing-imports core/models.py core/pipeline.py
+          mypy --follow-imports=skip --ignore-missing-imports \
+            --check-untyped-defs \
+            --disable-error-code=attr-defined \
+            --disable-error-code=arg-type \
+            --disable-error-code=misc \
+            --disable-error-code=assignment \
+            --disable-error-code=union-attr \
+            --disable-error-code=import-untyped \
+            core/interceptor.py \
+            chemistry/proxy_rotator.py \
+            chemistry/tls_rotator.py \
+            chemistry/tor_rotator.py \
+            chemistry/tcp_options.py \
+            chemistry/origin_server_ip.py
+
+  dependency-security:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies and pip-audit
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock
+          pip install pip-audit==2.8.0
+
+      - name: Audit Python dependencies
+        run: |
+          pip-audit -r requirements.lock
+
+  lockfile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify requirements.lock is up to date
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-tools==7.4.1
+          pip-compile --strip-extras --resolver=backtracking --output-file requirements.lock requirements.in
+          git diff --exit-code requirements.lock
+
+  performance-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock
+
+      - name: Start local origin
+        run: |
+          python -m http.server 18080 >/tmp/origin.log 2>&1 &
+          echo $! > /tmp/origin.pid
+
+      - name: Start EvilWAF
+        run: |
+          python evilwaf.py -t http://127.0.0.1:18080 --no-tui --listen-host 127.0.0.1 --listen-port 8080 >/tmp/evilwaf.log 2>&1 &
+          echo $! > /tmp/evilwaf.pid
+          sleep 5
+
+      - name: Run benchmark smoke
+        run: |
+          python benchmarks/proxy_benchmark.py \
+            --proxy http://127.0.0.1:8080 \
+            --target http://127.0.0.1:18080 \
+            --requests 80 \
+            --concurrency 8 > perf-ci.txt
+
+      - name: Validate performance budget
+        run: |
+          python benchmarks/check_budgets.py perf-ci.txt benchmarks/perf_budgets_ci.json
+
+      - name: Cleanup
+        if: always()
+        run: |
+          kill "$(cat /tmp/evilwaf.pid)" || true
+          kill "$(cat /tmp/origin.pid)" || true
