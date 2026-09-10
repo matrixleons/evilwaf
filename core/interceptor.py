@@ -178,7 +178,7 @@ class CertificateAuthority:
             x509.NameAttribute(NameOID.ORGANIZATION_NAME, "EvilWAF MITM Proxy"),
             x509.NameAttribute(NameOID.COMMON_NAME, "evilwaf-ca"),
         ])
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
         ca_cert = (
             x509.CertificateBuilder()
             .subject_name(subject)
@@ -291,7 +291,7 @@ class CertificateAuthority:
             except Exception:
                 pass
         subject_attrs.append(x509.NameAttribute(NameOID.ORGANIZATION_NAME, "EvilWAF Proxy"))
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
         cert = (
             x509.CertificateBuilder()
             .subject_name(x509.Name(subject_attrs))
