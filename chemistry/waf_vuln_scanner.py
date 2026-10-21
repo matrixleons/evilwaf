@@ -296,8 +296,9 @@ class WAFFingerprinter:
         self.version = ""
         self.headers: Dict[str, str] = {}
         self._ctx = ssl.create_default_context()
-        self._ctx.check_hostname = False
-        self._ctx.verify_mode   = ssl.CERT_NONE
+        # Validate server certificates and hostnames.
+        self._ctx.check_hostname = True
+        self._ctx.verify_mode = ssl.CERT_REQUIRED
 
     def fingerprint(self) -> Tuple[str, str, Dict[str, str]]:
         try:
@@ -423,6 +424,29 @@ class RequestThrottler:
         return RequestThrottler()
 
 
+def decode_http_body(raw: bytes, headers: dict) -> str:
+    """Decode HTTP content encoding before interpreting text."""
+    import gzip
+    import zlib
+
+    encoding = headers.get("content-encoding", "").lower().strip()
+
+    if encoding == "br":
+        import brotli
+        raw = brotli.decompress(raw)
+    elif encoding == "gzip":
+        raw = gzip.decompress(raw)
+    elif encoding == "deflate":
+        try:
+            raw = zlib.decompress(raw)
+        except zlib.error:
+            raw = zlib.decompress(raw, -zlib.MAX_WBITS)
+    elif encoding not in ("", "identity"):
+        raise ValueError(f"Unsupported content encoding: {encoding}")
+
+    return raw.decode("utf-8", errors="replace")
+
+
 class HTTPProber:
     def __init__(self, target: str, timeout: float = 12.0):
         parsed       = urllib.parse.urlparse(target)
@@ -431,8 +455,8 @@ class HTTPProber:
         self.base    = f"{self.scheme}://{self.host}"
         self.timeout = timeout
         self._ctx    = ssl.create_default_context()
-        self._ctx.check_hostname = False
-        self._ctx.verify_mode   = ssl.CERT_NONE
+        self._ctx.check_hostname = True
+        self._ctx.verify_mode = ssl.CERT_REQUIRED
 
     def probe(self, probe: ProbeRequest) -> ProbeResult:
         start = time.monotonic()
@@ -444,9 +468,10 @@ class HTTPProber:
                 probe.url, method=probe.method, headers=probe.headers,
             )
             with opener.open(req, timeout=self.timeout) as resp:
-                body    = resp.read(8192).decode(errors="ignore")
+                raw = resp.read(8192)
                 elapsed = time.monotonic() - start
-                hdrs    = {k.lower(): v for k, v in resp.headers.items()}
+                hdrs = {k.lower(): v for k, v in resp.headers.items()}
+                body = decode_http_body(raw, hdrs)
                 outcome = self._classify(resp.status, body, hdrs)
                 tls_ver = getattr(resp.fp, "_sock", None)
                 tls_ver = getattr(tls_ver, "version", lambda: None)() if tls_ver else None
@@ -460,7 +485,11 @@ class HTTPProber:
             elapsed = time.monotonic() - start
             body = ""
             try:
-                body = e.read(2048).decode(errors="ignore")
+                raw = e.read(8192)
+                error_headers = {
+                    k.lower(): v for k, v in e.headers.items()
+                }
+                body = decode_http_body(raw, error_headers)[:2048]
             except Exception:
                 pass
             hdrs    = {k.lower(): v for k, v in e.headers.items()}
@@ -489,24 +518,44 @@ class HTTPProber:
 
     @staticmethod
     def _classify(code: int, body: str, hdrs: dict) -> RequestOutcome:
-        if _FAST:
-            import json as _json
-            outcome = _fsc.classify_response(code, body, _json.dumps(hdrs))
-            return RequestOutcome(outcome) if outcome in RequestOutcome._value2member_map_ \
-                   else RequestOutcome.BLOCKED
+        """Conservative HTTP classification.
+
+        HTTP success does not establish WAF bypass or exploitation.
+        HTTP errors do not automatically establish WAF blocking.
+        """
         bl = body.lower()
-        chall_kw = ["challenge","captcha","verify","human","just a moment","turnstile"]
-        block_kw = ["blocked","forbidden","access denied","request rejected",
-                    "security violation","attack detected","waf","firewall"]
-        if any(k in bl for k in chall_kw):
+        headers = {str(k).lower(): str(v).lower()
+                   for k, v in hdrs.items()}
+
+        challenge_markers = (
+            "captcha", "turnstile", "just a moment",
+            "checking your browser"
+        )
+
+        block_markers = (
+            "request blocked", "request rejected",
+            "attack detected", "security violation"
+        )
+
+        if any(marker in bl for marker in challenge_markers):
             return RequestOutcome.CHALLENGE
-        if code in {400,403,405,406,429,444,503,502,520}:
+
+        if headers.get("cf-mitigated") == "challenge":
+            return RequestOutcome.CHALLENGE
+
+        if any(marker in bl for marker in block_markers):
             return RequestOutcome.BLOCKED
-        if any(k in bl for k in block_kw):
+
+        if headers.get("x-waf-block") or headers.get("x-sucuri-block"):
             return RequestOutcome.BLOCKED
+
+        if code == 429:
+            return RequestOutcome.BLOCKED
+
         if 200 <= code < 400:
             return RequestOutcome.PASSED
-        return RequestOutcome.BLOCKED
+
+        return RequestOutcome.ERROR
 
 
 class ConfidenceTracker:
@@ -983,7 +1032,7 @@ class FindingAnalyser:
     _META: Dict[VulnCategory, Tuple[str, VulnSeverity, str, Optional[str]]] = {
         VulnCategory.SQLI:   (
             "SQL Injection Rule Gap", VulnSeverity.CRITICAL,
-            "Strengthen SQLi ruleset; use parameterized queries.", "CVE-2022-27978"),
+            "Strengthen SQLi ruleset; use parameterized queries.", None),
         VulnCategory.XSS:    (
             "XSS Filter Bypass", VulnSeverity.HIGH,
             "Update XSS ruleset; enforce Content-Security-Policy.", None),
@@ -1043,10 +1092,15 @@ class FindingAnalyser:
             cve   = None
         else:
             title, base_sev, rem, cve = meta
-            sev = self._severity(category, pr, conf, base_sev)
+            title = f"Unconfirmed observation: {title}"
+            sev = VulnSeverity.LOW
 
-        desc = (f"{title} — pass_rate={pr:.1%}  confidence={conf:.1%}  "
-                f"samples={total}")
+        desc = (
+            f"Unconfirmed WAF response observation: "
+            f"pass_rate={pr:.1%} confidence={conf:.1%} "
+            f"samples={total}. HTTP acceptance does not establish "
+            f"exploitation or a security vulnerability."
+        )
 
         return VulnFinding(
             category=category, severity=sev, title=title,
@@ -1058,55 +1112,45 @@ class FindingAnalyser:
     @staticmethod
     def _severity(cat: VulnCategory, pr: float, conf: float,
                   base: VulnSeverity) -> VulnSeverity:
-        crit = {VulnCategory.SQLI, VulnCategory.RCE}
-        if cat in crit:
-            if pr > 0.4 and conf > 0.65:
-                return VulnSeverity.CRITICAL
-            if pr > 0.15:
-                return VulnSeverity.HIGH
-            return VulnSeverity.MEDIUM
-        if pr > 0.5 and conf > 0.6:
-            return VulnSeverity.HIGH
-        return base
+        """HTTP pass rates cannot establish vulnerability severity."""
+        return VulnSeverity.LOW
 
 
 class VulnVerifier:
-    def __init__(self, prober: HTTPProber, throttler: RequestThrottler):
-        self._prober    = prober
+    """Recheck observations without claiming exploit confirmation."""
+
+    def __init__(self, prober: HTTPProber,
+                 throttler: RequestThrottler):
+        self._prober = prober
         self._throttler = throttler
 
     def verify(self, finding: VulnFinding,
                baseline: List[ProbeResult]) -> VulnFinding:
+
+        finding.verified = False
+
         if not finding.evidence:
             finding.false_positive = True
             return finding
 
-        sample       = finding.evidence[:5]
-        passed_count = 0
+        sample = finding.evidence[:5]
+        repeated_passes = 0
+
         for r in sample:
             self._throttler.wait()
             retry = self._prober.probe(r.request)
-            if retry.outcome == RequestOutcome.PASSED:
-                passed_count += 1
 
-        if passed_count == 0:
+            if retry.outcome == RequestOutcome.PASSED:
+                repeated_passes += 1
+
+        if repeated_passes == 0:
             finding.false_positive = True
-            finding.verified       = False
             return finding
 
-        base_pr = 0.0
-        if baseline:
-            base_pr = len([r for r in baseline
-                           if r.outcome == RequestOutcome.PASSED]) / len(baseline)
+        # Repeatable HTTP acceptance is not proof of exploitation.
+        finding.false_positive = False
+        finding.verified = False
 
-        vpr = passed_count / len(sample)
-        if vpr > base_pr + 0.25:
-            finding.verified       = True
-            finding.false_positive = False
-            finding.confidence     = min(finding.confidence + vpr * 0.15, 1.0)
-        else:
-            finding.false_positive = vpr < 0.2
-            finding.verified       = vpr >= 0.5
         return finding
 
 
@@ -1138,6 +1182,10 @@ class ReportGenerator:
             "summary": {
                 "total":    len(findings),
                 "verified": sum(1 for f in findings if f.verified),
+                "unverified_observations": sum(
+                    1 for f in findings
+                    if not f.verified and not f.false_positive
+                ),
                 "fp":       sum(1 for f in findings if f.false_positive),
                 **{s.value: sum(1 for f in findings
                                 if f.severity == s and not f.false_positive)
@@ -1327,14 +1375,14 @@ class WAFVulnScanner:
             if self._tls_info.get("old_tls_allowed") or self._tls_info.get("sni_bypass"):
                 self._findings.append(VulnFinding(
                     category=VulnCategory.TLS_ANOMALY,
-                    severity=VulnSeverity.MEDIUM,
-                    title="TLS Misconfiguration",
+                    severity=VulnSeverity.LOW,
+                    title="Unconfirmed observation: TLS configuration",
                     description=(
                         f"old_tls={self._tls_info['old_tls_allowed']}  "
                         f"sni_bypass={self._tls_info['sni_bypass']}  "
                         f"versions={self._tls_info['tls_versions']}"
                     ),
-                    evidence=[], confidence=0.85, verified=True,
+                    evidence=[], confidence=0.85, verified=False,
                     remediation="Disable TLS < 1.2; enforce strict SNI.",
                     layer=TLSInspectionLayer.NAME,
                 ))
