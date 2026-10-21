@@ -354,7 +354,11 @@ def _print_scan_summary(scanner: WAFVulnScanner, findings: List[VulnFinding],
 
     real = [f for f in findings if not f.false_positive]
     if real:
-        print(f"\n  Findings ({len(real)} verified):")
+        print(
+            f"\\n  Findings ("
+            f"{sum(bool(f.verified) for f in real)} verified, "
+            f"{sum(not f.verified for f in real)} unverified):"
+        )
         print(f"  {'Sev':<10} {'Conf':>5} {'V':>3}  {'Layer':<25} {'Title'}")
         print(f"  {'-'*10} {'-'*5} {'-'*3}  {'-'*25} {'-'*30}")
         for f in sorted(real, key=lambda x: x.confidence, reverse=True):

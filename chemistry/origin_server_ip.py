@@ -465,11 +465,11 @@ class OriginVerifier:
                     return False, False, False
                 cert_ok = cert_match and not is_cf
                 http_ok = self.verify_http(ip)
-                return (cert_ok or http_ok), cert_ok, http_ok
+                return False, cert_ok, http_ok
 
         cert_ok = self.verify_cert(ip)
         http_ok = self.verify_http(ip)
-        return (cert_ok or http_ok), cert_ok, http_ok
+        return False, cert_ok, http_ok
 
 
 class _WAFVendorResolver:
@@ -1508,7 +1508,7 @@ class OriginServerIPHunter:
                             continue
                         cert_ok = bool(tls_r and tls_r[3] and not tls_r[6])
                         http_ok = bool(http_r and not http_r[4] and 0 < http_r[3] < 500)
-                        c.verified      = cert_ok or http_ok
+                        c.verified      = False
                         c.cert_verified = cert_ok
                         c.http_verified = http_ok
                         if c.verified:

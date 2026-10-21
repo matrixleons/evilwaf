@@ -192,9 +192,13 @@ class ScanStatistics:
             self.pass_rates[cat].append(0.5)
             self.block_rates[cat].append(0.5)
         elif result.outcome == RequestOutcome.TIMEOUT:
-            self.timeouts   += 1
+            self.timeouts += 1
+            self.pass_rates[cat].append(0.0)
+            self.block_rates[cat].append(0.0)
         else:
-            self.errors     += 1
+            self.errors += 1
+            self.pass_rates[cat].append(0.0)
+            self.block_rates[cat].append(0.0)
         self.timeline.append((result.timestamp, result.request.payload[:60],
                                result.outcome.value))
 
@@ -1328,7 +1332,7 @@ class WAFVulnScanner:
         baseline, baseline_ms       = self._baseline()
         self._l5_behav._baseline_ms = baseline_ms
 
-        total_steps = 12
+        total_steps = 13
         step        = 0
 
         def prog(name: str):
