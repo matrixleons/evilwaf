@@ -379,29 +379,28 @@ class OriginVerifier:
         self._classifier = StrictIPClassifier()
 
     def verify_cert(self, ip: str) -> bool:
+        """Check trusted TLS identity, not definitive origin ownership."""
         try:
             ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode    = ssl.CERT_NONE
-            with ctx.wrap_socket(
-                socket.create_connection((ip, 443), timeout=5),
-                server_hostname=self.domain,
-            ) as sock:
-                cert = sock.getpeercert()
-                issuer_str = str(cert.get("issuer", ""))
-                is_cdn, reason = self._classifier.is_definitely_cdn(
-                    ip, cert_issuer=issuer_str
-                )
-                if is_cdn:
-                    return False
-                for san_type, san_value in cert.get("subjectAltName", []):
-                    if san_type == "DNS":
-                        clean = san_value.lstrip("*.")
-                        if self.domain.endswith(clean) or self.domain == clean:
-                            return True
-        except Exception:
-            pass
-        return False
+
+            with socket.create_connection((ip, 443), timeout=5) as raw:
+                with ctx.wrap_socket(
+                    raw, server_hostname=self.domain
+                ) as sock:
+                    cert = sock.getpeercert()
+
+            if not cert:
+                return False
+
+            issuer_str = str(cert.get("issuer", ""))
+            is_cdn, _reason = self._classifier.is_definitely_cdn(
+                ip, cert_issuer=issuer_str
+            )
+
+            return not is_cdn
+
+        except (OSError, ssl.SSLError, ValueError):
+            return False
 
     def verify_http(self, ip: str) -> bool:
         if _FAST_AVAILABLE:
@@ -415,11 +414,11 @@ class OriginVerifier:
         for port, use_ssl in [(443, True), (80, False)]:
             try:
                 if use_ssl:
+                    raw = socket.create_connection((ip, port), timeout=5)
                     ctx = ssl.create_default_context()
-                    ctx.check_hostname = False
-                    ctx.verify_mode    = ssl.CERT_NONE
-                    raw  = socket.create_connection((ip, port), timeout=5)
-                    conn = ssl.wrap_socket(raw, server_hostname=self.domain)
+                    conn = ctx.wrap_socket(
+                        raw, server_hostname=self.domain
+                    )
                 else:
                     conn = socket.create_connection((ip, port), timeout=5)
 
@@ -466,11 +465,11 @@ class OriginVerifier:
                     return False, False, False
                 cert_ok = cert_match and not is_cf
                 http_ok = self.verify_http(ip)
-                return (cert_ok or http_ok), cert_ok, http_ok
+                return False, cert_ok, http_ok
 
         cert_ok = self.verify_cert(ip)
         http_ok = self.verify_http(ip)
-        return (cert_ok or http_ok), cert_ok, http_ok
+        return False, cert_ok, http_ok
 
 
 class _WAFVendorResolver:
@@ -952,11 +951,13 @@ class HTTPHeaderLeakScanner:
         for port, use_ssl in [(443, True), (80, False)]:
             try:
                 if use_ssl:
+                    raw = socket.create_connection(
+                        (self.domain, port), timeout=5
+                    )
                     ctx = ssl.create_default_context()
-                    ctx.check_hostname = False
-                    ctx.verify_mode    = ssl.CERT_NONE
-                    raw  = socket.create_connection((self.domain, port), timeout=5)
-                    conn = ssl.wrap_socket(raw, server_hostname=self.domain)
+                    conn = ctx.wrap_socket(
+                        raw, server_hostname=self.domain
+                    )
                 else:
                     conn = socket.create_connection((self.domain, port), timeout=5)
 
@@ -1507,7 +1508,7 @@ class OriginServerIPHunter:
                             continue
                         cert_ok = bool(tls_r and tls_r[3] and not tls_r[6])
                         http_ok = bool(http_r and not http_r[4] and 0 < http_r[3] < 500)
-                        c.verified      = cert_ok or http_ok
+                        c.verified      = False
                         c.cert_verified = cert_ok
                         c.http_verified = http_ok
                         if c.verified:
